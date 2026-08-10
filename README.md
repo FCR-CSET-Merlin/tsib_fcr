@@ -33,6 +33,13 @@ No solver installation required for demand-only simulations. The original `sim5R
 pip install highspy
 ```
 
+## Documentation map
+
+- This README is the current public API and usage guide.
+- [`AGENT.md`](AGENT.md) documents repository-maintenance constraints and the supported MERLIN_RCP interface.
+- [`feature-request/README_request.md`](feature-request/README_request.md) records the completed integration request; [`feature-request/perfiles_horarios_tsib_fcr.md`](feature-request/perfiles_horarios_tsib_fcr.md) records external MERLIN_RCP profile assumptions.
+- [`legacy_tsib_fcr_CLAUDE.md`](legacy_tsib_fcr_CLAUDE.md) is the completed original Chile-adaptation proposal, kept only for historical context.
+
 ---
 
 ## Quick start
@@ -434,7 +441,9 @@ tsib/
     model5R1C.py             — Building5R1C: 5R1C model + sim_demand_direct + sim5R1C
   data/episcope/
     episcope.csv             — TABULA/EPISCOPE EU archetypes (upstream, read-only)
-    CL_episcope.csv          — Chilean archetypes (27 rows)
+    CL_episcope.csv          — Chilean archetypes (810 fully resolved rows)
+    CL_episcope_base.csv     — 27-row geometry seed used to generate the Chilean catalogue
+    CL_zone_uvalues.csv      — diagnostic U-value table (not read at runtime)
   weather/
     testreferenceyear.py     — German DWD TRY adapter
     chile.py                 — BD Ancestral TMY adapter (bd_tmy_to_tsib)

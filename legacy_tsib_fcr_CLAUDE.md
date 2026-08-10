@@ -1,4 +1,6 @@
-# tsib_fcr — Chile Adaptation
+# tsib_fcr — Chile adaptation (historical implementation proposal)
+
+> **Status: completed and superseded.** This document records the initial Chile-adaptation proposal. The implementation subsequently expanded from the 27-row prototype to the current 810-row resolved catalogue and added the direct simulation, hourly-control, and DHW work described in [`README.md`](README.md). For current repository guidance, use [`AGENT.md`](AGENT.md); do not implement this document as a live specification.
 
 Fork of [FZJ-IEK3-VSA/tsib](https://github.com/FZJ-IEK3-VSA/tsib) for residential building thermal simulation in Chile.
 
@@ -469,6 +471,6 @@ def simulate_archetype(
 - [x] **3** Crear `tsib/weather/chile.py` con `bd_tmy_to_tsib`
 - [x] **3** Exponer `bd_tmy_to_tsib` en `tsib/__init__.py`
 - [x] **4** Verificar que HiGHS o CBC esté instalado y accesible por Pyomo
-- [ ] **5** Crear `test/test_chile.py` y confirmar que los 3 tests pasan
-- [ ] **6** Bump de versión en `setup.py` / `pyproject.toml` a `0.2.0-cl`
-- [ ] **6** Actualizar `README.md` con sección "Chile support" y nota sobre solver
+- [x] **5** Crear y ampliar `test/test_chile.py`; la suite Chile actual cubre 24 casos
+- [x] **6** Actualizar los metadatos del paquete (`setup.py`, versión `0.2.0+cl`)
+- [x] **6** Actualizar `README.md` con soporte Chile y la distinción entre simulación directa y solver

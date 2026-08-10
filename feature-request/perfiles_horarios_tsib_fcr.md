@@ -1,4 +1,6 @@
-# Perfiles horarios base para tsib_fcr
+# Perfiles horarios base para la integración MERLIN_RCP / tsib_fcr
+
+> **Alcance y vigencia.** Este documento describe supuestos de perfiles que viven en MERLIN_RCP, no dentro de este repositorio. Desde la implementación de `sim_demand_direct()` con máscaras de disponibilidad, el apagado de HVAC debe representarse con `heating_available` y `cooling_available`, no con setpoints extremos.
 
 Esta guia documenta los perfiles horarios base que usa `scripts/simular_edificios_tsib_fcr.py` para electricidad residencial, ACS y ganancias internas al preparar la configuracion de `tsib_fcr`.
 
@@ -71,13 +73,13 @@ Los setpoints actuales son:
 |---|---:|---:|
 | Activo/presente | 21 C | 24 C |
 | Durmiendo | 18 C | 24 C |
-| Fuera | -20 C | 60 C |
+| Fuera | No aplicable: calefacción no disponible | No aplicable: refrigeración no disponible |
 
-El estado `Fuera` representa HVAC apagado. No se usan infinitos reales porque el modelo 5R1C directo resuelve balances algebraicos hora a hora y los infinitos pueden generar `NaN` o inestabilidad numerica. En su lugar se usan cotas finitas extremas:
+El estado `Fuera` representa HVAC apagado. Los setpoints permanecen finitos y válidos, pero el equipo se desactiva mediante una máscara horaria:
 
-```text
-calefaccion apagada: -20 C
-refrigeracion apagada: 60 C
+```python
+heating_available_h = present_persons_h > 0
+cooling_available_h = present_persons_h > 0
 ```
 
 Aunque los perfiles `occ_active`, `occ_sleeping` y `occ_nothome` son fraccionales, el control termico primero los convierte a conteos enteros de personas por vivienda. La conversion usa el metodo de restos mayores para que en cada hora se cumpla:
@@ -88,7 +90,7 @@ active_persons_h + sleeping_persons_h + nothome_persons_h = personas_por_viviend
 
 Luego:
 
-- si `active_persons_h + sleeping_persons_h = 0`, se interpreta que no hay nadie en casa y se usa HVAC apagado con -20 C / 60 C;
+- si `active_persons_h + sleeping_persons_h = 0`, se interpreta que no hay nadie en casa y ambas disponibilidades HVAC se fijan en `False`;
 - en esas mismas horas sin personas presentes, la demanda ACS se fuerza a cero;
 - si hay personas presentes, la calefaccion se interpola solo entre activos y durmiendo;
 - la refrigeracion usa 24 C cuando hay al menos una persona presente.
@@ -318,15 +320,16 @@ cfg["elecLoad"] = elec_profile
 Despues se calculan setpoints horarios:
 
 ```python
-heating_setpoint = pd.Series(-20.0, index=index)
+heating_setpoint = pd.Series(18.0, index=index)
 heating_present = (
     active_persons * 21.0
     + sleeping_persons * 18.0
 ) / present_persons.replace(0, np.nan)
 heating_setpoint.loc[present_persons > 0] = heating_present.loc[present_persons > 0]
 
-cooling_setpoint = pd.Series(60.0, index=index)
-cooling_setpoint.loc[present_persons > 0] = 24.0
+cooling_setpoint = pd.Series(24.0, index=index)
+heating_available = present_persons > 0
+cooling_available = present_persons > 0
 ```
 
 Esos setpoints son los que usa el helper directo 5R1C para decidir si hay demanda termica. Por eso la ocupacion afecta simultaneamente electricidad, ganancias internas y demanda de calefaccion/refrigeracion, pero los setpoints de apagado solo aplican cuando el conteo entero deja cero personas presentes.
@@ -439,7 +442,7 @@ La electricidad base anual no cambia porque el script normaliza el perfil final 
 
 Lo que si cambia la energia anual termica es:
 
-- El setpoint horario: si el conteo entero deja `active_persons = 0` y `sleeping_persons = 0`, el script aproxima HVAC apagado usando calefaccion a -20 C y refrigeracion a 60 C; si hay personas presentes, interpola solo entre activos y durmiendo.
+- El control horario: si el conteo entero deja `active_persons = 0` y `sleeping_persons = 0`, ambas máscaras HVAC se desactivan; si hay personas presentes, el setpoint de calefacción interpola solo entre activos y durmiendo.
 - Las ganancias internas por personas: no hay ganancias personales cuando `occ_nothome` domina, y dormir usa menor potencia metabolica que estar activo.
 - Las ganancias por artefactos: dependen de la electricidad horaria y se consideran solo en una fraccion de 15% como calor interno.
 
@@ -607,7 +610,14 @@ cfg["hotWaterLoad"] = dhw_profile
 Luego el modelo se ejecuta con:
 
 ```python
-resultados = sim_demand_direct_con_setpoints_horarios(cfg, setpoint_calefaccion, setpoint_refrigeracion)
+model = tsib.Building5R1C(cfg)
+model.sim_demand_direct(
+    heating_setpoint=setpoint_calefaccion,
+    cooling_setpoint=setpoint_refrigeracion,
+    heating_available=present_persons > 0,
+    cooling_available=present_persons > 0,
+)
+resultados = model.detailedResults
 ```
 
 En el camino directo 5R1C, `Q_ig` entra al balance termico como ganancia interna sensible. `elecLoad` queda reportado como `Electricity Load`; ademas 15% de esa electricidad se considera calor interno de artefactos dentro de `Q_ig`. `hotWaterLoad` se inyecta para mantener compatibilidad de configuracion, pero el camino directo no devuelve ACS en `detailedResults`; por eso MERLIN_RCP reporta ACS desde el perfil propio calculado con `T_mains(t)`.
