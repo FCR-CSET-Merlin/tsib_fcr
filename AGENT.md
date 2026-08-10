@@ -1,8 +1,8 @@
-# tsib_fcr — CLAUDE.md
+# tsib_fcr — repository guidance
 
 Fork of [FZJ-IEK3-VSA/tsib](https://github.com/FZJ-IEK3-VSA/tsib) adapting the 5R1C residential building thermal model for Chile.
-
-This file is the active engineering guide. [`tsib_fcr_CLAUDE.md`](tsib_fcr_CLAUDE.md) is an archived, superseded prototype specification; do not use it for implementation decisions.
+This file is the active engineering guide. The current user-facing API and workflow are documented in [`README.md`](README.md).
+[`legacy_tsib_fcr_CLAUDE.md`](legacy_tsib_fcr_CLAUDE.md) preserves the original implementation proposal; it is historical context, not an active specification.
 
 ---
 
@@ -31,11 +31,11 @@ python -c "from pyomo.contrib import appsi; s = appsi.solvers.Highs(); print(s.a
 | 1.1 | Add `'CL'` to `KWARG_TYPES["country"]` | `tsib/buildingconfig.py:30` | ✅ |
 | 1.2 | Add `KWARG_DEFAULTS_CL` + apply when `country=='CL'` | `tsib/buildingconfig.py` | ✅ |
 | 1.3 | U-value override block at end of `_get_fabric` | `tsib/buildingconfig.py` | ✅ |
-| 2 | Create `CL_episcope.csv` with 27 archetypes (later expanded, see task 12) | `tsib/data/episcope/CL_episcope.csv` | ✅ |
+| 2 | Create Chilean archetypes (initial 27-row seed; expanded in task 12) | `tsib/data/episcope/CL_episcope.csv` | ✅ |
 | 3a | Create `tsib/weather/chile.py` with `bd_tmy_to_tsib` | `tsib/weather/chile.py` | ✅ |
 | 3b | Export `bd_tmy_to_tsib` from package | `tsib/__init__.py` | ✅ |
 | 4 | Verify HiGHS solver works | env | ✅ |
-| 5 | Create `test/test_chile.py` (3 smoke tests) | `test/test_chile.py` | ✅ |
+| 5 | Create and expand `test/test_chile.py` (24 tests) | `test/test_chile.py` | ✅ |
 | 6 | Bump version to PEP 440-compliant `0.2.1+cl`, update package name | `setup.py` | ✅ |
 | 7 | Hourly setpoints + HVAC availability mask in `sim_demand_direct` | `tsib/thermal/model5R1C.py` | ✅ |
 | 8 | Normalize `Q_ig` (scalar/array/Series) via `as_hourly_series` | `tsib/thermal/model5R1C.py`, `tsib/profiles.py` | ✅ |
@@ -74,7 +74,7 @@ tsib/
     build_cl_episcope.py     ← merges CL_episcope_base.csv + build_cl_zone_uvalues output -> CL_episcope.csv, not imported at runtime
   weather/
     testreferenceyear.py ← German TRY adapter
-    chile.py            ← BD Ancestral TMY adapter, including t_mains handling
+    chile.py            ← BD Ancestral TMY adapter (`bd_tmy_to_tsib`), including `t_mains` handling
 ```
 
 ### How archetype lookup works
@@ -110,7 +110,7 @@ No other tsib internals are used by MERLIN_RCP. Do **not** rely on
 
 ## Key constraints
 
-- **Solver required:** `model5R1C.py` uses Pyomo. HiGHS (`pip install highspy`) is the recommended solver. Without it simulations fail.
+- **Solver only for optimization:** `sim_demand_direct()` does not require a solver. The original `sim5R1C()` optimization path uses Pyomo and requires HiGHS (`pip install highspy`) or another compatible solver.
 - **`_get_fabric` is the injection point:** U-value overrides (`U_Wall_1`, `U_Roof_1`, `U_Floor_1`, `U_Window_1`, `n_Infiltration`, `g_gl_n`) are passed as kwargs and must override CSV values at the end of `_get_fabric` (line 602).
 - **KWARG validation runs first:** Any new kwarg passed to `BuildingConfiguration` must be registered in `KWARG_TYPES` or it will be silently dropped / raise a KeyError. The U-value override kwargs (`U_Wall_1` etc.) need to be added to `KWARG_TYPES` as `float`.
 - **Chile archetypes are fully resolved, one row per (buildingType, period, material, zone):** `CL_episcope.csv` (810 rows) bakes zone/period/material-specific U-values directly into each row — there is no separate zone-U-value table at runtime (there used to be `CL_zone_uvalues.csv` + a custom period-binning function; both were retired once the merge made them redundant). Resolved internally via `material`+`buildingYear`+`buildingType`+`thermalZone` kwargs — MERLIN_RCP no longer computes/injects U-values (see Interface contract above). Regenerate via `tsib/data/episcope/build_cl_episcope.py`; never hand-edit `CL_episcope.csv` directly (edit `CL_episcope_base.csv` for geometry, or `build_cl_zone_uvalues.py` for U-value sourcing, then rerun both build scripts).

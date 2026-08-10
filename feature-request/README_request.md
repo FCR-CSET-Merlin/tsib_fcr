@@ -1,4 +1,6 @@
-# Cambios propuestos para el fork tsib_fcr
+# Cambios implementados para el fork tsib_fcr
+
+> **Estado: completado.** Esta solicitud se conserva como registro de los requisitos de integración de MERLIN_RCP. Los puntos de simulación directa, setpoints horarios, máscaras de disponibilidad HVAC, normalización de `Q_ig`, ACS útil y `t_mains` ya están implementados y cubiertos por `test/test_chile.py`. La reactivación de `getHouseholdProfiles()` quedó explícitamente fuera de alcance; ver [`README.md`](../README.md#4-occupancy-profiles--currently-unavailable-in-this-fork).
 
 Este README resume los cambios que conviene implementar directamente en el fork `tsib_fcr` para que la integracion con MERLIN_RCP sea mas limpia, mantenible y comparable con validaciones. El foco es simulacion termica 5R1C y ACS. La electricidad residencial queda fuera del alcance principal porque aun esta en etapa inicial de supuestos y calibracion.
 
@@ -480,16 +482,16 @@ La integracion MERLIN queda apoyada en APIs publicas del fork y no en replicas i
 
 ## Checklist para PR en tsib_fcr
 
-- [ ] `sim_demand_direct()` acepta setpoints horarios opcionales.
-- [ ] `sim_demand_direct()` mantiene resultados identicos si no se entregan setpoints.
-- [ ] `detailedResults` incluye setpoints usados.
-- [ ] `Q_ig` acepta escalar, array o serie horaria.
-- [ ] ACS util se puede calcular con `t_mains` horario.
-- [ ] `bd_tmy_to_tsib()` conserva `t_mains` si existe.
-- [ ] Hay ejemplo reproducible de simulacion termica Chile.
-- [ ] Hay ejemplo reproducible de ACS Chile.
-- [ ] Las unidades quedan documentadas.
-- [ ] MERLIN puede remover la funcion local que replica el metodo directo 5R1C.
+- [x] `sim_demand_direct()` acepta setpoints horarios opcionales y máscaras de disponibilidad HVAC.
+- [x] `sim_demand_direct()` mantiene resultados identicos si no se entregan setpoints.
+- [x] `detailedResults` incluye setpoints usados.
+- [x] `Q_ig` acepta escalar, array o serie horaria.
+- [x] ACS util se puede calcular con `t_mains` horario.
+- [x] `bd_tmy_to_tsib()` conserva y normaliza `t_mains` si existe.
+- [x] Hay ejemplo reproducible de simulacion termica Chile.
+- [x] Hay ejemplo reproducible de ACS Chile.
+- [x] Las unidades quedan documentadas.
+- [x] MERLIN puede llamar a la API directa del fork sin replicar el método 5R1C.
 
 ## Resultado esperado para MERLIN_RCP
 

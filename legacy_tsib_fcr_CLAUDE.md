@@ -1,6 +1,6 @@
-# tsib_fcr — Chile Adaptation (archived prototype specification)
+# tsib_fcr — Chile adaptation (historical implementation proposal)
 
-> **Superseded:** This document describes the original 27-archetype, caller-injected-U-value prototype and is retained only for historical context. It is not an implementation specification. Use [`CLAUDE.md`](CLAUDE.md) for the current engineering contract and [`README.md`](README.md) for the supported public API. The active implementation has 810 fully resolved archetypes (3 building types × 5 periods × 6 materials × 9 zones), supports solver-free direct demand simulation, and includes DHW/profile and `t_mains` utilities not covered here.
+> **Status: completed and superseded.** This document describes the original 27-archetype, caller-injected-U-value prototype and is retained only for historical context. The implementation subsequently expanded to 810 fully resolved archetypes (3 building types × 5 periods × 6 materials × 9 zones), with solver-free direct simulation, hourly control, DHW/profile and `t_mains` utilities. For current repository guidance, use [`AGENT.md`](AGENT.md); for the supported public API, use [`README.md`](README.md). Do not implement this document as a live specification.
 
 Fork of [FZJ-IEK3-VSA/tsib](https://github.com/FZJ-IEK3-VSA/tsib) for residential building thermal simulation in Chile.
 
@@ -471,6 +471,6 @@ def simulate_archetype(
 - [x] **3** Crear `tsib/weather/chile.py` con `bd_tmy_to_tsib`
 - [x] **3** Exponer `bd_tmy_to_tsib` en `tsib/__init__.py`
 - [x] **4** Verificar que HiGHS o CBC esté instalado y accesible por Pyomo
-- [ ] **5** Crear `test/test_chile.py` y confirmar que los 3 tests pasan
-- [ ] **6** Bump de versión en `setup.py` / `pyproject.toml` a `0.2.0-cl`
-- [ ] **6** Actualizar `README.md` con sección "Chile support" y nota sobre solver
+- [x] **5** Crear y ampliar `test/test_chile.py`; la suite Chile actual cubre 24 casos
+- [x] **6** Actualizar los metadatos del paquete (`setup.py`, versión `0.2.0+cl`)
+- [x] **6** Actualizar `README.md` con soporte Chile y la distinción entre simulación directa y solver

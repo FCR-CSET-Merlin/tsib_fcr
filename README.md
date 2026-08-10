@@ -33,6 +33,13 @@ No solver installation required for demand-only simulations. The original `sim5R
 pip install highspy
 ```
 
+## Documentation map
+
+- This README is the current public API and usage guide.
+- [`AGENT.md`](AGENT.md) documents repository-maintenance constraints and the supported MERLIN_RCP interface.
+- [`feature-request/README_request.md`](feature-request/README_request.md) records the completed integration request; [`feature-request/perfiles_horarios_tsib_fcr.md`](feature-request/perfiles_horarios_tsib_fcr.md) records external MERLIN_RCP profile assumptions.
+- [`legacy_tsib_fcr_CLAUDE.md`](legacy_tsib_fcr_CLAUDE.md) is the completed original Chile-adaptation proposal, kept only for historical context.
+
 ---
 
 ## Quick start
@@ -128,25 +135,7 @@ dhw = tsib.calculate_dhw_load(
 
 See the "`sim_demand_direct()`" and "Domestic hot water" sections below for details.
 
-### 4. Occupancy profiles
-
-When no behavioural profiles are supplied, `BuildingConfiguration` now creates
-the deterministic weekday/weekend reference profiles documented in
-[`feature-request/perfiles_horarios_tsib_fcr.md`](feature-request/perfiles_horarios_tsib_fcr.md)
-(`autoProfiles=True`). They populate `Q_ig`, `occ_nothome`, `occ_sleeping`,
-`elecLoad`, and `hotWaterLoad`; electricity is normalized to 2500
-kWh/vivienda-año by default, and DHW uses 40 L/persona/día at 55 °C with
-hourly `t_mains`. The profiles scale with `n_persons` and `n_apartments`, and
-accept `holidays` to apply the weekend shape on specific dates. They are
-transparent prototype assumptions, **not** calibrated occupancy data. Disable
-this fallback with `autoProfiles=False` when the caller will supply every
-profile explicitly.
-
-You can always overwrite the generated values after `getBdgCfg()`, as in the
-example above. For meaningful DHW demand, use `calculate_dhw_load()`; the
-legacy `hotWaterLoad` fallback is intentionally zero.
-
-### Historical stochastic occupancy profiles — unavailable in this fork
+### 4. Occupancy profiles — currently unavailable in this fork
 
 `tsib.getHouseholdProfiles()` (upstream tsib's stochastic occupancy/electricity/DHW
 generator, built on the `tsorb` package) was **removed from this fork** in commit
@@ -358,30 +347,6 @@ model.sim_demand_direct(
 
 `sim_demand()` is an alias for `sim_demand_direct()` kept for backwards compatibility (called with no arguments, same as before).
 
-### Optional Chilean monthly setpoints
-
-The default remains the constant comfort bounds in the building configuration.
-For a Chilean archetype, set `setpointProfile="chile_monthly"` to use the
-month-by-zone table in `tsib/data/chile/thermal_setpoints_by_zone_month.csv`
-automatically when `sim_demand_direct()` is called without explicit setpoints:
-
-```python
-cfg = tsib.BuildingConfiguration({
-    "country": "CL", "buildingYear": 2010, "buildingType": "SFH",
-    "material": "lad", "thermalZone": "D", "a_ref": 60.0,
-    "weatherData": tmy, "weatherID": "my_location",
-    "setpointProfile": "chile_monthly",
-}, ignore_profiles=True).getBdgCfg()
-
-model = tsib.Building5R1C(cfg)
-model.sim_demand_direct()  # uses the monthly Chilean heating/cooling series
-```
-
-For explicit control, call `tsib.get_chile_monthly_setpoints(tmy.index, "D")`;
-it returns a DataFrame with `"Heating Setpoint"` and `"Cooling Setpoint"`.
-The source table retains zone J from the provided source, but the current
-archetype catalogue supports only zones A–I and the helper rejects J.
-
 The original `sim5R1C()` method remains available for full refurbishment optimization (requires a Pyomo-compatible LP solver); the setpoint/availability arguments above are only supported by the direct path.
 
 ---
@@ -476,7 +441,9 @@ tsib/
     model5R1C.py             — Building5R1C: 5R1C model + sim_demand_direct + sim5R1C
   data/episcope/
     episcope.csv             — TABULA/EPISCOPE EU archetypes (upstream, read-only)
-    CL_episcope.csv          — Chilean archetypes (810 resolved rows)
+    CL_episcope.csv          — Chilean archetypes (810 fully resolved rows)
+    CL_episcope_base.csv     — 27-row geometry seed used to generate the Chilean catalogue
+    CL_zone_uvalues.csv      — diagnostic U-value table (not read at runtime)
   weather/
     testreferenceyear.py     — German DWD TRY adapter
     chile.py                 — BD Ancestral TMY adapter (bd_tmy_to_tsib)
