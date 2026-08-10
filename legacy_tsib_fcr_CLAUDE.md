@@ -1,6 +1,6 @@
 # tsib_fcr — Chile adaptation (historical implementation proposal)
 
-> **Status: completed and superseded.** This document records the initial Chile-adaptation proposal. The implementation subsequently expanded from the 27-row prototype to the current 810-row resolved catalogue and added the direct simulation, hourly-control, and DHW work described in [`README.md`](README.md). For current repository guidance, use [`AGENT.md`](AGENT.md); do not implement this document as a live specification.
+> **Status: completed and superseded.** This document describes the original 27-archetype, caller-injected-U-value prototype and is retained only for historical context. The implementation subsequently expanded to 810 fully resolved archetypes (3 building types × 5 periods × 6 materials × 9 zones), with solver-free direct simulation, hourly control, DHW/profile and `t_mains` utilities. For current repository guidance, use [`AGENT.md`](AGENT.md); for the supported public API, use [`README.md`](README.md). Do not implement this document as a live specification.
 
 Fork of [FZJ-IEK3-VSA/tsib](https://github.com/FZJ-IEK3-VSA/tsib) for residential building thermal simulation in Chile.
 

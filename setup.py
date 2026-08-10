@@ -8,10 +8,10 @@ with open(os.path.join(dir_path, "README.md"), "r") as fh:
 
 setuptools.setup(
     name="tsib-fcr",
-    version="0.2.0+cl",
-    author="Pablo Castillo, Fraunhofer Chile Research",
-    author_email="pablo.castillo@fraunhofer.cl",
-    description="Fork of Time Series Initialization for Buildings",
+    version="0.2.1+cl",
+    author="Leander Kotzur, Fraunhofer Chile Research",
+    author_email="l.kotzur@fz-juelich.de",
+    description="Time Series Initialization for Buildings",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/FZJ-IEK3-VSA/tsib",
