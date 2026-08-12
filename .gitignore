@@ -9,6 +9,7 @@ __enercore_cache__/
 .eggs/
 .vscode/
 .venv/
+.claude/
 
 # file types to ignore
 *.pyc
