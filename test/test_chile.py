@@ -5,6 +5,7 @@ patrón que simulate_santiago_tower_tsib.py: Building5R1C directamente con
 perfiles deterministas inyectados en cfg antes de sim5R1C().
 """
 import os
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -80,6 +81,140 @@ def test_country_cl_accepted():
         "weatherData": tmy,
         "weatherID":   "test_country",
     })
+
+
+def test_direct_archetype_id_is_consumed_without_unused_kwarg_warning():
+    """A direct CL archetype ID selects its row and is not reported unused."""
+    tmy = _make_synthetic_tmy()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        cfg = tsib.BuildingConfiguration(
+            {
+                "ID": "CL.SFH.RT2.lad.D",
+                "country": "CL",
+                "weatherData": tmy,
+                "weatherID": "test_direct_id",
+                "latitude": -33.45,
+                "longitude": -70.67,
+                "refurbishment": False,
+                "U_Wall_1": 9.9,
+                "U_Roof_1": 1.1,
+                "U_Floor_1": 0.8,
+                "U_Window_1": 2.2,
+            },
+            ignore_profiles=True,
+        ).getBdgCfg(includeSupply=False)
+
+    assert cfg["U_Wall_1"] == pytest.approx(9.9)
+    assert cfg["U_Roof_1"] == pytest.approx(1.1)
+    assert cfg["U_Floor_1"] == pytest.approx(0.8)
+    assert cfg["U_Window"] == pytest.approx(2.2)
+    assert not caught
+
+
+def test_default_profiles_enable_direct_simulation_without_manual_injection():
+    """The deterministic fallback makes the solver-free path self-contained."""
+    tmy = _make_synthetic_tmy().iloc[:48]
+    cfg = tsib.BuildingConfiguration(
+        {
+            "ID": "CL.SFH.RT2.lad.D",
+            "country": "CL",
+            "weatherData": tmy,
+            "weatherID": "test_auto_profiles",
+            "latitude": -33.45,
+            "longitude": -70.67,
+            "refurbishment": False,
+        },
+        ignore_profiles=True,
+    ).getBdgCfg(includeSupply=False)
+
+    assert cfg["occupancyProfileSource"] == "deterministic_merlin_reference"
+    assert len(cfg["Q_ig"]) == len(tmy)
+    assert cfg["elecLoad"].index.equals(tmy.index)
+    assert cfg["Q_ig"].min() > 0
+
+    model = tsib.Building5R1C(cfg)
+    model.sim_demand_direct()
+    assert len(model.detailedResults) == len(tmy)
+
+
+def test_auto_profiles_can_be_disabled_for_explicit_profile_control():
+    tmy = _make_synthetic_tmy().iloc[:24]
+    cfg = tsib.BuildingConfiguration(
+        {
+            "ID": "CL.SFH.RT2.lad.D",
+            "country": "CL",
+            "weatherData": tmy,
+            "weatherID": "test_no_auto_profiles",
+            "latitude": -33.45,
+            "longitude": -70.67,
+            "refurbishment": False,
+            "autoProfiles": False,
+        },
+        ignore_profiles=True,
+    ).getBdgCfg(includeSupply=False)
+
+    assert "Q_ig" not in cfg
+    assert "occupancyProfileSource" not in cfg
+
+
+def test_default_profiles_match_documented_merlin_reference_shapes():
+    tmy = _make_synthetic_tmy()
+    cfg = tsib.BuildingConfiguration(
+        {
+            "ID": "CL.SFH.RT2.lad.D",
+            "country": "CL",
+            "weatherData": tmy,
+            "weatherID": "test_reference_profiles",
+            "latitude": -33.45,
+            "longitude": -70.67,
+            "refurbishment": False,
+        },
+        ignore_profiles=True,
+    ).getBdgCfg(includeSupply=False)
+
+    # 2010-01-01 is Friday, so the weekday table applies at these hours.
+    assert cfg["occ_sleeping"].iloc[7] == pytest.approx(0.05)
+    assert cfg["occ_nothome"].iloc[7] == pytest.approx(0.35)
+    assert cfg["elecLoad"].sum() == pytest.approx(2500.0)
+    assert cfg["hotWaterLoad"].sum() > 0
+
+
+def test_chile_monthly_setpoint_helper_and_zone_j_guard():
+    index = pd.DatetimeIndex(["2010-01-01 12:00", "2010-07-01 12:00"])
+    setpoints = tsib.get_chile_monthly_setpoints(index, "D")
+
+    assert setpoints["Heating Setpoint"].tolist() == pytest.approx([21.6, 18.6])
+    assert setpoints["Cooling Setpoint"].tolist() == pytest.approx([26.6, 23.6])
+    assert (setpoints["Cooling Setpoint"] > setpoints["Heating Setpoint"]).all()
+    with pytest.raises(ValueError, match="Zone J"):
+        tsib.get_chile_monthly_setpoints(index, "J")
+
+
+def test_chile_monthly_setpoint_profile_is_used_by_direct_simulation():
+    tmy = _make_synthetic_tmy().iloc[:48]
+    cfg = tsib.BuildingConfiguration(
+        {
+            "ID": "CL.SFH.RT2.lad.D",
+            "country": "CL",
+            "weatherData": tmy,
+            "weatherID": "test_monthly_setpoints",
+            "latitude": -33.45,
+            "longitude": -70.67,
+            "refurbishment": False,
+            "setpointProfile": "chile_monthly",
+        },
+        ignore_profiles=True,
+    ).getBdgCfg(includeSupply=False)
+
+    assert cfg["thermalZone"] == "D"
+    assert cfg["heatingSetpointProfile"].iloc[0] == pytest.approx(21.6)
+    assert cfg["coolingSetpointProfile"].iloc[0] == pytest.approx(26.6)
+
+    model = tsib.Building5R1C(cfg)
+    model.sim_demand_direct()
+    assert model.detailedResults["Heating Setpoint"].iloc[0] == pytest.approx(21.6)
+    assert model.detailedResults["Cooling Setpoint"].iloc[0] == pytest.approx(26.6)
 
 
 def test_sfh_prenorma_madera_zona_g():

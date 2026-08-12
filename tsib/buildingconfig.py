@@ -15,6 +15,8 @@ import numpy as np
 
 import tsib
 import tsib.data
+from .profiles import build_default_occupancy_profiles
+from .setpoints import get_chile_monthly_setpoints
 
 
 HEAT_TECHS = [
@@ -89,6 +91,11 @@ KWARG_TYPES = {
     "hasPhotovoltaic": bool,  # if the building has a photovoltaic panel
     "varyoccupancy": int,  # for how many occupancy profiles the building shall be optimized
     "mean_load": bool,  # if the fluctuative profile or the mean hourly profile should be taken
+    "autoProfiles": bool,  # create deterministic fallback profiles when none are supplied
+    "autoProfileElectricityKwhPerApartment": float,
+    "autoProfileDhwLitersPerPersonDay": float,
+    "autoProfileDhwTargetTempC": float,
+    "holidays": list,  # dates treated as weekend profiles by autoProfiles
     "a_roof": "NOT_IMPLEMENTED",  # the total roof area
     "windows_refurbished": "NOT_IMPLEMENTED",  # if the windows have allready been replaced
     "walls_refurbished": "NOT_IMPLEMENTED",  # if the walls have already gotton an additional insulation
@@ -103,6 +110,7 @@ KWARG_TYPES = {
     "g_gl_n": float,
     "material": ["mad", "lad", "hor", "met", "prefab", "adobe"],  # envelope material, selects the matching CL_episcope.csv archetype row
     "thermalZone": ["A", "B", "C", "D", "E", "F", "G", "H", "I"],  # CL thermal zone (zona_termica), selects the matching CL_episcope.csv archetype row
+    "setpointProfile": ["constant", "chile_monthly"],
 }
 
 KWARG_DEFAULTS_CL = {
@@ -145,6 +153,12 @@ KWARG_DEFAULTS = {
     "n_persons": 2,  # number of persons living in a single flat
     "varyoccupancy": 1,  # for how many occupancy profiles the building shall be optimized
     "mean_load": False,  # if the fluctuative profile or the mean hourly profile should be taken
+    "autoProfiles": True,  # keep direct simulations runnable without tsorb
+    "autoProfileElectricityKwhPerApartment": 2500.0,
+    "autoProfileDhwLitersPerPersonDay": 40.0,
+    "autoProfileDhwTargetTempC": 55.0,
+    "holidays": None,
+    "setpointProfile": "constant",
     "costdata": "default_2016",
     "ventControl": False, # if the ventilation system can be intelligently operated
 }
@@ -248,6 +262,7 @@ class BuildingConfiguration(object):
                 raise ValueError(kwarg + " is not a valid keyword argument")
 
         # fill some of the other kwargs with default values
+        self._explicit_country = kwargs.get("country")
         self.inputKwargs = copy.deepcopy(kwargs)
         if self.inputKwargs.get("country") == "CL":
             for k, v in KWARG_DEFAULTS_CL.items():
@@ -256,6 +271,7 @@ class BuildingConfiguration(object):
         for def_kwarg in KWARG_DEFAULTS:
             if not def_kwarg in self.inputKwargs:
                 self.inputKwargs[def_kwarg] = KWARG_DEFAULTS[def_kwarg]
+        self._is_chilean = self.inputKwargs.get("country") == "CL"
 
         self.IDentries = {}
         # init building configurator
@@ -290,7 +306,9 @@ class BuildingConfiguration(object):
             cl_path = os.path.join(tsib.data.PATH, "episcope", "CL_episcope.csv")
             if os.path.exists(cl_path):
                 cl_raw = pd.read_csv(cl_path, index_col=0)
-                raw = pd.concat([raw, cl_raw])
+                # The two wide catalogue tables otherwise leave pandas with
+                # fragmented blocks before lookup adds its temporary columns.
+                raw = pd.concat([raw, cl_raw]).copy()
             # reduce to the country list of buildings
             self.iwu_bdgs = raw
 
@@ -305,6 +323,54 @@ class BuildingConfiguration(object):
             if includeSupply:
                 cfg = self._get_equipment(cfg, self.inputKwargs)
             cfg = self._get_finance(cfg, self.inputKwargs)
+
+            cfg["autoProfiles"] = self.inputKwargs.pop("autoProfiles")
+            if cfg["autoProfiles"]:
+                weather = cfg["weather"]
+                if "t_mains" in weather.columns:
+                    t_mains = weather["t_mains"]
+                else:
+                    # BD Ancestral inputs normally carry t_mains.  Keep plain
+                    # tsib weather frames runnable with the documented 30-day
+                    # dry-bulb fallback used by bd_tmy_to_tsib.
+                    t_mains = weather["T"].rolling(24 * 30, center=True, min_periods=1).mean()
+                holidays = self.inputKwargs.pop("holidays")
+                defaults = build_default_occupancy_profiles(
+                    weather.index,
+                    persons=cfg["n_persons"],
+                    n_apartments=cfg["n_apartments"],
+                    annual_electricity_kwh_per_apartment=self.inputKwargs.pop(
+                        "autoProfileElectricityKwhPerApartment"
+                    ),
+                    dhw_liters_per_person_day=self.inputKwargs.pop(
+                        "autoProfileDhwLitersPerPersonDay"
+                    ),
+                    dhw_target_temp_c=self.inputKwargs.pop("autoProfileDhwTargetTempC"),
+                    t_mains=t_mains,
+                    holidays=holidays,
+                )
+                for key, value in defaults.items():
+                    cfg.setdefault(key, value)
+                cfg["occupancyProfileSource"] = "deterministic_merlin_reference"
+            else:
+                # Consume the auto-profile parameters even when the caller
+                # disables generation and will inject all series explicitly.
+                self.inputKwargs.pop("holidays")
+                self.inputKwargs.pop("autoProfileElectricityKwhPerApartment")
+                self.inputKwargs.pop("autoProfileDhwLitersPerPersonDay")
+                self.inputKwargs.pop("autoProfileDhwTargetTempC")
+
+            cfg["setpointProfile"] = self.inputKwargs.pop("setpointProfile")
+            if cfg["setpointProfile"] == "chile_monthly":
+                thermal_zone = cfg.get("thermalZone")
+                if thermal_zone is None:
+                    raise ValueError(
+                        "setpointProfile='chile_monthly' requires a Chilean "
+                        "archetype with a thermal zone."
+                    )
+                setpoints = get_chile_monthly_setpoints(cfg["weather"].index, thermal_zone)
+                cfg["heatingSetpointProfile"] = setpoints["Heating Setpoint"]
+                cfg["coolingSetpointProfile"] = setpoints["Cooling Setpoint"]
 
             # check if cost data file exists
             if not os.path.exists(
@@ -323,9 +389,12 @@ class BuildingConfiguration(object):
             self.IDentries["costdata"] = cfg["costdata"]
 
             # check if unused kwargs are left
+            unused_kwarg_defaults = dict(KWARG_DEFAULTS)
+            if self._is_chilean:
+                unused_kwarg_defaults.update(KWARG_DEFAULTS_CL)
             for remaining_kwg in self.inputKwargs:
-                if remaining_kwg in KWARG_DEFAULTS:
-                    if not self.inputKwargs[remaining_kwg] == KWARG_DEFAULTS[remaining_kwg]:
+                if remaining_kwg in unused_kwarg_defaults:
+                    if not self.inputKwargs[remaining_kwg] == unused_kwarg_defaults[remaining_kwg]:
                         warnings.warn('Keyword ' + str(remaining_kwg) + ' is not used for the building parameterization.\n')
                     else:
                         logging.info('Keyword ' + str(remaining_kwg) + ' is not used. Nevertheless, it just holds the default value.\n')
@@ -484,7 +553,20 @@ class BuildingConfiguration(object):
         ### Either use predefined building types
         iwu_bdgs = self.iwu_bdgs
         if "ID" in kwgs:
-            iwu_bdg = self.iwu_bdgs.loc[kwgs["ID"],:].to_dict()
+            # ``ID`` is the canonical direct-archetype lookup key.  Consume
+            # it here so the final unused-kwargs check does not incorrectly
+            # warn that it had no effect.
+            archetype_id = kwgs.pop("ID")
+            iwu_bdg = self.iwu_bdgs.loc[archetype_id, :].to_dict()
+            requested_country = kwgs.pop("country", None)
+            if (
+                self._explicit_country is not None
+                and requested_country != iwu_bdg["Code_Country"]
+            ):
+                raise ValueError(
+                    f'Archetype ID "{archetype_id}" belongs to country '
+                    f'"{iwu_bdg["Code_Country"]}", not "{requested_country}".'
+                )
 
 
             cfg['a_ref'] = iwu_bdg['A_C_Ref']
@@ -492,6 +574,7 @@ class BuildingConfiguration(object):
             # own range start; pop it so it doesn't trip the unused-kwarg check
             cfg['buildingYear'] = kwgs.pop('buildingYear', iwu_bdg['Year1_Building'])
             cfg["n_apartments"] = iwu_bdg["n_Apartment"]
+            cfg["thermalZone"] = iwu_bdg.get("Code_Zone")
 
             return cfg, iwu_bdg
 
@@ -614,6 +697,8 @@ class BuildingConfiguration(object):
             cfg["n_apartments"] = iwu_bdg["n_Apartment"]
             logging.info('number of app. "n_apartments" is inherited from IWU')
 
+        cfg["thermalZone"] = iwu_bdg.get("Code_Zone")
+
         return cfg, iwu_bdg
     
 
@@ -682,7 +767,7 @@ class BuildingConfiguration(object):
         }
         for _kwarg_key, _cfg_key in _u_kwarg_to_cfg.items():
             if _kwarg_key in kwgs:
-                cfg[_cfg_key] = float(kwgs[_kwarg_key])
+                cfg[_cfg_key] = float(kwgs.pop(_kwarg_key))
 
         return cfg
 
