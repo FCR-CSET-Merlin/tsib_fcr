@@ -35,14 +35,15 @@ python -c "from pyomo.contrib import appsi; s = appsi.solvers.Highs(); print(s.a
 | 3a | Create `tsib/weather/chile.py` with `bd_tmy_to_tsib` | `tsib/weather/chile.py` | ✅ |
 | 3b | Export `bd_tmy_to_tsib` from package | `tsib/__init__.py` | ✅ |
 | 4 | Verify HiGHS solver works | env | ✅ |
-| 5 | Create and expand `test/test_chile.py` (24 tests) | `test/test_chile.py` | ✅ |
-| 6 | Bump version to PEP 440-compliant `0.2.1+cl`, update package name | `setup.py` | ✅ |
+| 5 | Create and expand `test/test_chile.py` (33 tests) | `test/test_chile.py` | ✅ |
+| 6 | Bump version to PEP 440-compliant `0.2.2+cl`, update package name | `setup.py` | ✅ |
 | 7 | Hourly setpoints + HVAC availability mask in `sim_demand_direct` | `tsib/thermal/model5R1C.py` | ✅ |
 | 8 | Normalize `Q_ig` (scalar/array/Series) via `as_hourly_series` | `tsib/thermal/model5R1C.py`, `tsib/profiles.py` | ✅ |
 | 9 | `calculate_dhw_load` + profile utilities | `tsib/profiles.py` | ✅ |
 | 10 | `t_mains` alias recognition + null-handling in `bd_tmy_to_tsib` | `tsib/weather/chile.py` | ✅ |
 | 11 | Validation examples (`sim_demand_direct`, DHW) | `examples/chile/` | ✅ |
 | 12 | `material`/`thermalZone` kwargs; merged `CL_episcope.csv` (810 rows, 6 materials incl. `met`/`adobe` from MINVU/NCh853 literature, 5-segment ID) replaces MERLIN-injected U-values | `tsib/buildingconfig.py`, `tsib/data/episcope/` | ✅ |
+| 13 | Regional residential electricity from BNE 2024 / Census 2024 `kwh_por_persona_p11a` | `tsib/profiles.py`, `tsib/data/chile/` | ✅ |
 
 Tasks 7–11 implement the high-priority items from
 [`feature-request/README_request.md`](feature-request/README_request.md) (a request
@@ -91,7 +92,8 @@ The U-value override (task 1.3) must run **after** `_get_fabric`'s own values, s
 MERLIN_RCP (consuming project) calls only:
 - `tsib.BuildingConfiguration(kwargs_dict)` — for Chile, `kwargs_dict` includes `country="CL"`,
   `buildingYear`, `buildingType`, `material` (`"mad"`/`"lad"`/`"hor"`/`"met"`/`"prefab"`/`"adobe"`),
-  and `thermalZone` (`"A"`–`"I"`, Chile's `zona_termica`). tsib resolves the archetype and its
+  `thermalZone` (`"A"`–`"I"`, Chile's `zona_termica`), and optionally `region` (integer 1–16)
+  for the BNE/Census regional electricity calibration. tsib resolves the archetype and its
   zone-specific U-values internally (see [Zone-specific U-values](README.md#zone-specific-u-values))
   — MERLIN_RCP does **not** compute or inject `U_Wall_1`/etc. itself; those kwargs remain available
   only as a manual override.
