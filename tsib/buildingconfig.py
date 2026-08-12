@@ -15,7 +15,10 @@ import numpy as np
 
 import tsib
 import tsib.data
-from .profiles import build_default_occupancy_profiles
+from .profiles import (
+    build_default_occupancy_profiles,
+    get_chile_regional_electricity_kwh_per_person,
+)
 from .setpoints import get_chile_monthly_setpoints
 
 
@@ -110,6 +113,7 @@ KWARG_TYPES = {
     "g_gl_n": float,
     "material": ["mad", "lad", "hor", "met", "prefab", "adobe"],  # envelope material, selects the matching CL_episcope.csv archetype row
     "thermalZone": ["A", "B", "C", "D", "E", "F", "G", "H", "I"],  # CL thermal zone (zona_termica), selects the matching CL_episcope.csv archetype row
+    "region": list(range(1, 17)),  # Chilean administrative region code
     "setpointProfile": ["constant", "chile_monthly"],
 }
 
@@ -263,6 +267,9 @@ class BuildingConfiguration(object):
 
         # fill some of the other kwargs with default values
         self._explicit_country = kwargs.get("country")
+        self._explicit_auto_profile_electricity = (
+            "autoProfileElectricityKwhPerApartment" in kwargs
+        )
         self.inputKwargs = copy.deepcopy(kwargs)
         if self.inputKwargs.get("country") == "CL":
             for k, v in KWARG_DEFAULTS_CL.items():
@@ -272,6 +279,8 @@ class BuildingConfiguration(object):
             if not def_kwarg in self.inputKwargs:
                 self.inputKwargs[def_kwarg] = KWARG_DEFAULTS[def_kwarg]
         self._is_chilean = self.inputKwargs.get("country") == "CL"
+        if "region" in self.inputKwargs and not self._is_chilean:
+            raise ValueError("'region' is only supported when country='CL'.")
 
         self.IDentries = {}
         # init building configurator
@@ -324,6 +333,22 @@ class BuildingConfiguration(object):
                 cfg = self._get_equipment(cfg, self.inputKwargs)
             cfg = self._get_finance(cfg, self.inputKwargs)
 
+            region = self.inputKwargs.pop("region", None)
+            annual_electricity_kwh_per_apartment = self.inputKwargs.pop(
+                "autoProfileElectricityKwhPerApartment"
+            )
+            if region is not None:
+                cfg["region"] = region
+                self.IDentries["region"] = region
+                if not self._explicit_auto_profile_electricity:
+                    electricity_kwh_per_person = (
+                        get_chile_regional_electricity_kwh_per_person(region)
+                    )
+                    annual_electricity_kwh_per_apartment = (
+                        electricity_kwh_per_person * cfg["n_persons"]
+                    )
+                    cfg["electricityKwhPerPersonYear"] = electricity_kwh_per_person
+
             cfg["autoProfiles"] = self.inputKwargs.pop("autoProfiles")
             if cfg["autoProfiles"]:
                 weather = cfg["weather"]
@@ -335,12 +360,13 @@ class BuildingConfiguration(object):
                     # dry-bulb fallback used by bd_tmy_to_tsib.
                     t_mains = weather["T"].rolling(24 * 30, center=True, min_periods=1).mean()
                 holidays = self.inputKwargs.pop("holidays")
+                generated_electricity_profile = "elecLoad" not in cfg
                 defaults = build_default_occupancy_profiles(
                     weather.index,
                     persons=cfg["n_persons"],
                     n_apartments=cfg["n_apartments"],
-                    annual_electricity_kwh_per_apartment=self.inputKwargs.pop(
-                        "autoProfileElectricityKwhPerApartment"
+                    annual_electricity_kwh_per_apartment=(
+                        annual_electricity_kwh_per_apartment
                     ),
                     dhw_liters_per_person_day=self.inputKwargs.pop(
                         "autoProfileDhwLitersPerPersonDay"
@@ -352,11 +378,24 @@ class BuildingConfiguration(object):
                 for key, value in defaults.items():
                     cfg.setdefault(key, value)
                 cfg["occupancyProfileSource"] = "deterministic_merlin_reference"
+                if generated_electricity_profile:
+                    cfg["electricityKwhPerApartmentYear"] = (
+                        annual_electricity_kwh_per_apartment
+                    )
+                    cfg["electricityProfileSource"] = (
+                        "explicit_autoProfileElectricityKwhPerApartment"
+                        if self._explicit_auto_profile_electricity
+                        else "BNE2024_Censo2024_kwh_por_persona_p11a"
+                        if region is not None
+                        else "default_2500_kwh_per_apartment"
+                    )
+                    self.IDentries["elecLoadAnnualKwhPerApartment"] = (
+                        annual_electricity_kwh_per_apartment
+                    )
             else:
                 # Consume the auto-profile parameters even when the caller
                 # disables generation and will inject all series explicitly.
                 self.inputKwargs.pop("holidays")
-                self.inputKwargs.pop("autoProfileElectricityKwhPerApartment")
                 self.inputKwargs.pop("autoProfileDhwLitersPerPersonDay")
                 self.inputKwargs.pop("autoProfileDhwTargetTempC")
 

@@ -180,6 +180,66 @@ def test_default_profiles_match_documented_merlin_reference_shapes():
     assert cfg["hotWaterLoad"].sum() > 0
 
 
+def test_chile_regional_electricity_uses_kwh_per_person_p11a():
+    tmy = _make_synthetic_tmy().iloc[:24]
+    cfg = tsib.BuildingConfiguration(
+        {
+            "ID": "CL.SFH.RT2.lad.D",
+            "country": "CL",
+            "region": 13,
+            "n_persons": 3,
+            "weatherData": tmy,
+            "weatherID": "test_regional_electricity",
+            "latitude": -33.45,
+            "longitude": -70.67,
+            "refurbishment": False,
+        },
+        ignore_profiles=True,
+    ).getBdgCfg(includeSupply=False)
+
+    annual_per_apartment = 951.01 * 3
+    assert tsib.get_chile_regional_electricity_kwh_per_person(13) == pytest.approx(951.01)
+    assert cfg["region"] == 13
+    assert cfg["electricityKwhPerPersonYear"] == pytest.approx(951.01)
+    assert cfg["electricityKwhPerApartmentYear"] == pytest.approx(annual_per_apartment)
+    assert cfg["electricityProfileSource"] == "BNE2024_Censo2024_kwh_por_persona_p11a"
+    assert cfg["elecLoad"].sum() == pytest.approx(
+        annual_per_apartment * cfg["n_apartments"] * len(tmy) / 8760.0
+    )
+
+
+def test_explicit_electricity_per_apartment_overrides_region():
+    tmy = _make_synthetic_tmy().iloc[:24]
+    cfg = tsib.BuildingConfiguration(
+        {
+            "ID": "CL.SFH.RT2.lad.D",
+            "country": "CL",
+            "region": 13,
+            "n_persons": 3,
+            "autoProfileElectricityKwhPerApartment": 3000.0,
+            "weatherData": tmy,
+            "weatherID": "test_regional_electricity_override",
+            "latitude": -33.45,
+            "longitude": -70.67,
+            "refurbishment": False,
+        },
+        ignore_profiles=True,
+    ).getBdgCfg(includeSupply=False)
+
+    assert cfg["electricityKwhPerApartmentYear"] == pytest.approx(3000.0)
+    assert cfg["electricityProfileSource"] == "explicit_autoProfileElectricityKwhPerApartment"
+    assert "electricityKwhPerPersonYear" not in cfg
+
+
+def test_chile_regional_electricity_rejects_invalid_region():
+    with pytest.raises(ValueError, match="region"):
+        tsib.get_chile_regional_electricity_kwh_per_person(17)
+    with pytest.raises(ValueError, match="region"):
+        tsib.BuildingConfiguration({"country": "CL", "region": 17})
+    with pytest.raises(ValueError, match="only supported"):
+        tsib.BuildingConfiguration({"country": "BE", "region": 1})
+
+
 def test_chile_monthly_setpoint_helper_and_zone_j_guard():
     index = pd.DatetimeIndex(["2010-01-01 12:00", "2010-07-01 12:00"])
     setpoints = tsib.get_chile_monthly_setpoints(index, "D")

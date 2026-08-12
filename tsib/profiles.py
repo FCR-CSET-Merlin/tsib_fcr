@@ -3,8 +3,37 @@ like MERLIN_RCP: normalizing scalar/array/Series inputs to aligned hourly
 arrays, building daily-shape profiles, and computing domestic hot water (DHW)
 thermal demand from a water-mains temperature series.
 """
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
+
+
+_CHILE_REGIONAL_ELECTRICITY_PATH = (
+    Path(__file__).parent
+    / "data"
+    / "chile"
+    / "consumo_electrico_residencial_regional_2024.csv"
+)
+_CHILE_REGIONAL_ELECTRICITY = pd.read_csv(
+    _CHILE_REGIONAL_ELECTRICITY_PATH,
+    usecols=["region", "kwh_por_persona_p11a"],
+).set_index("region", verify_integrity=True)
+
+
+def get_chile_regional_electricity_kwh_per_person(region):
+    """Return 2024 residential electricity use [kWh/person/year] by region."""
+    if isinstance(region, (bool, np.bool_)) or not isinstance(region, (int, np.integer)):
+        raise ValueError(f"region must be an integer from 1 to 16; got {region!r}.")
+    try:
+        value = float(
+            _CHILE_REGIONAL_ELECTRICITY.at[int(region), "kwh_por_persona_p11a"]
+        )
+    except (KeyError, TypeError, ValueError):
+        raise ValueError(f"region must be an integer from 1 to 16; got {region!r}.")
+    if not np.isfinite(value) or value <= 0:
+        raise ValueError(f"Invalid regional electricity value for region {region!r}.")
+    return value
 
 
 def as_hourly_series(value, index, name="value"):
