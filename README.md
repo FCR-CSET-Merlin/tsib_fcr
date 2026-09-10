@@ -30,7 +30,7 @@ This fork adapts the ISO 13790 5R1C residential building thermal model to the Ch
 Clone and install in editable mode:
 
 ```bash
-git clone https://github.com/your-org/tsib_fcr.git
+git clone https://github.com/FCR-CSET-Merlin/tsib_fcr.git
 cd tsib_fcr
 pip install -e .
 ```

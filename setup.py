@@ -14,7 +14,7 @@ setuptools.setup(
     description="Time Series Initialization for Buildings — Chile fork",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/PabloCastilloFCR/tsib_fcr",
+    url="https://github.com/FCR-CSET-Merlin/tsib_fcr",
     include_package_data=True,
     packages=setuptools.find_packages(),
     install_requires=required_packages,

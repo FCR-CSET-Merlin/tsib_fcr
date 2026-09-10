@@ -220,4 +220,4 @@ default solver, Python 3.9, reworked typical-building querying). For upstream
 history before the fork, see the
 [upstream repository](https://github.com/FZJ-IEK3-VSA/tsib).
 
-[1.0.0]: https://github.com/PabloCastilloFCR/tsib_fcr/releases/tag/v1.0.0
+[1.0.0]: https://github.com/FCR-CSET-Merlin/tsib_fcr/releases/tag/v1.0.0
