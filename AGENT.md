@@ -36,7 +36,7 @@ python -c "from pyomo.contrib import appsi; s = appsi.solvers.Highs(); print(s.a
 | 3b | Export `bd_tmy_to_tsib` from package | `tsib/__init__.py` | ✅ |
 | 4 | Verify HiGHS solver works | env | ✅ |
 | 5 | Create and expand `test/test_chile.py` (33 tests) | `test/test_chile.py` | ✅ |
-| 6 | Bump version to PEP 440-compliant `0.2.2+cl`, update package name | `setup.py` | ✅ |
+| 6 | Package renamed to `tsib-fcr`; first stable release tagged `v1.0.0` (see [`CHANGELOG.md`](CHANGELOG.md)) | `setup.py` | ✅ |
 | 7 | Hourly setpoints + HVAC availability mask in `sim_demand_direct` | `tsib/thermal/model5R1C.py` | ✅ |
 | 8 | Normalize `Q_ig` (scalar/array/Series) via `as_hourly_series` | `tsib/thermal/model5R1C.py`, `tsib/profiles.py` | ✅ |
 | 9 | `calculate_dhw_load` + profile utilities | `tsib/profiles.py` | ✅ |

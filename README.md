@@ -1,8 +1,15 @@
 # tsib-fcr — Time Series Initialization for Buildings (Chile Fork)
 
-**Version 0.2.2+cl** · Fork of [FZJ-IEK3-VSA/tsib](https://github.com/FZJ-IEK3-VSA/tsib) adapted for Chilean residential buildings by [Fraunhofer Chile Research](https://www.fraunhofer.cl).
+![version](https://img.shields.io/badge/version-1.0.0-blue)
+![status](https://img.shields.io/badge/status-stable-brightgreen)
+![python](https://img.shields.io/badge/python-3.9%2B-blue)
+![license](https://img.shields.io/badge/license-MIT-green)
+
+**Version 1.0.0** (first stable release) · Fork of [FZJ-IEK3-VSA/tsib](https://github.com/FZJ-IEK3-VSA/tsib) adapted for Chilean residential buildings by [Fraunhofer Chile Research](https://www.fraunhofer.cl).
 
 This fork adapts the ISO 13790 5R1C residential building thermal model to the Chilean context: zone-, period-, and material-resolved Chilean building archetypes, a BD Ancestral weather adapter, and a solver-free direct simulation path for thermal demand calculation.
+
+`1.0.0` marks the point where the public API below and the MERLIN_RCP interface contract in [`AGENT.md`](AGENT.md) are considered stable and covered by [Semantic Versioning](https://semver.org/): breaking changes will require a `2.0.0`. See [`CHANGELOG.md`](CHANGELOG.md) for the full list of what this release adds and changes relative to upstream tsib `0.2.x` and the earlier `0.2.x+cl` pre-releases.
 
 ---
 
@@ -37,6 +44,7 @@ pip install highspy
 ## Documentation map
 
 - This README is the current public API and usage guide.
+- [`CHANGELOG.md`](CHANGELOG.md) records every release and what changed relative to the previous version (and to upstream tsib).
 - [`AGENT.md`](AGENT.md) documents repository-maintenance constraints and the supported MERLIN_RCP interface.
 - [`feature-request/electric_demand/README.md`](feature-request/electric_demand/README.md) documents the regional residential-electricity source and calculation.
 - [`legacy_tsib_fcr_CLAUDE.md`](legacy_tsib_fcr_CLAUDE.md) is the completed original Chile-adaptation proposal, kept only for historical context.
