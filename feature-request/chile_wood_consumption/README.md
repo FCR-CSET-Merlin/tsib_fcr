@@ -1,0 +1,139 @@
+# Consumo residencial de leña en Chile
+
+## Estado y propósito
+
+Esta rama prepara un modelo de **estimación de consumo de leña residencial**
+para Chile. No debe reutilizar `simFireplace()` como si fuese un modelo
+calibrado de combustión: esa función upstream sólo construye una señal horaria
+estocástica a partir de temperatura y actividad.
+
+El objetivo inicial es convertir una demanda térmica horaria ya calculada por
+el modelo 5R1C en un rango trazable de:
+
+- calor útil abastecido por leña;
+- energía química de la leña;
+- volumen anual en metros cúbicos estéreo (`m3 st`);
+- masa anual de leña.
+
+La calibración debe ser regional, explícita en sus supuestos y separada para
+calefacción, cocina y ACS. La primera versión debe cubrir exclusivamente
+**calefacción de espacios**; cocina y ACS se añadirán sólo con perfiles y
+datos adecuados.
+
+## Fuente de referencia
+
+El insumo preparado se encuentra en MERLIN_RCP, rama
+[`analysis-consumo-lena`](https://github.com/FCR-CSET-Merlin/MERLIN_RCP/tree/analysis-consumo-lena),
+commit `c78c443e1739adbce8d6648f7c42a38496394c34`:
+
+- `data/reference/lena_consumo_residencial_redpe_2020.csv`: consumo 2017 por
+  región y por **vivienda consumidora**, con extremos inferior y superior.
+- `data/reference/lena_artefactos_redpe_2020.csv`: parque de artefactos y una
+  eficiencia ponderada de escenario.
+- `data/reference/lena_penetracion_usos_casen_2017.csv`: penetración de leña
+  por uso final, sin sumar usos porque un hogar puede declarar más de uno.
+- `docs/guias/datos_lena_redpe_2020.md`: trazabilidad de RedPE 2020 y de las
+  conversiones.
+
+Los valores de consumo son energía de entrada de combustible; no son demanda
+térmica útil ni promedios de todas las viviendas de una región.
+
+## Modelo propuesto
+
+Para una vivienda que usa leña para calefacción:
+
+```text
+E_fuel,target [MWh/a]
+    <- rango RedPE regional por vivienda consumidora
+
+E_use,target [MWh/a]
+    = E_fuel,target × eta_equipo
+
+q_wood,useful(t) [kW]
+    <- distribución de E_use,target sobre la demanda de calefacción 5R1C
+
+q_wood,fuel(t) [kW]
+    = q_wood,useful(t) / eta_equipo
+
+V_wood [m3 st/a]
+    = E_fuel,target / 1.867  # PCI = 15 MJ/kg
+
+m_wood [t/a]
+    = V_wood × 0.448
+```
+
+La asignación horaria se debe hacer sobre `Heating Load` del 5R1C y limitarse
+por esa demanda. Así se evita que un perfil de encendidos cree calor útil donde
+el edificio no lo requiere. Un primer perfil determinista y reproducible puede
+normalizar los pasos con demanda positiva; una extensión posterior podrá usar
+temperatura exterior, disponibilidad horaria y un modelo de ocupación.
+
+### Cobertura y consistencia energética
+
+Sea `Q_heat(t)` la demanda útil de calefacción y `E_use,target` la energía útil
+anual objetivo. La implementación debe calcular:
+
+```text
+E_use,assigned = min(E_use,target, sum(Q_heat(t) × dt))
+unallocated_use = E_use,target - E_use,assigned
+```
+
+`unallocated_use > 0` no se debe ocultar: puede indicar que el consumo regional
+incluye cocina/ACS, que la demanda simulada es demasiado baja o que el hogar no
+es comparable al promedio regional. El resultado debe reportar esa energía y
+no forzarla en las horas de calefacción.
+
+## Parámetros y escenarios
+
+La API debería recibir, como mínimo:
+
+```python
+estimate_wood_consumption(
+    heating_load,             # Series horaria, kW útiles
+    region,                   # 6--16; mapeo explícito a nombres RedPE
+    wood_heating_user=True,   # no inferir usuario individual desde penetración
+    consumption_case="mid",   # "low", "mid", "high" o valor MWh/a explícito
+    efficiency=None,          # si None: escenario regional documentado
+    pci_mj_per_kg=15.0,
+    solid_m3_per_stere=0.64,
+    density_t_per_solid_m3=0.7,
+)
+```
+
+La penetración CASEN se usará para expandir desde viviendas consumidoras al
+stock regional o para generar escenarios poblacionales, nunca para reducir el
+consumo de una vivienda ya clasificada como consumidora. Regiones sin valor
+REDPE comparable deben requerir un valor explícito o devolver un resultado no
+calibrado claramente marcado.
+
+La eficiencia es un supuesto sensible. El escenario disponible pondera
+aproximadamente 40 % para hechizo/chimenea, 50 % para cocina/salamandra/cámara
+simple y 65 % para cámara doble/caldera. No representa eficiencias certificadas
+por equipo ni una observación contemporánea homogénea.
+
+## Relación con `simFireplace()`
+
+`simFireplace()` puede inspirar una futura variante estocástica del *timing*,
+pero no debe determinar el consumo anual chileno. Su parámetro `fullloadSteps`
+no tiene relación con los rangos REDPE y su calibración no usa ni tipo de
+artefacto, ni PCI, ni eficiencia, ni datos chilenos. La primera implementación
+debe tener conservación energética y reproducibilidad como requisitos.
+
+## Entregables incrementales
+
+1. Incorporar la tabla REDPE normalizada con metadatos de fuente y un mapeo
+   región administrativa (`1..16`) a región RedPE.
+2. Implementar un estimador puro, sin depender de Pyomo ni de ocupación.
+3. Añadir pruebas de conservación de energía, conversión de unidades,
+   manejo de rango y límite por demanda útil.
+4. Integrar opcionalmente en el flujo de `BuildingConfiguration` sólo después
+   de validar resultados contra balances regionales; no alterar `elecLoad`.
+5. Definir, con datos adicionales, perfiles de cocina/ACS y una posible
+   estocasticidad de uso.
+## MVP implementado
+
+La rama incluye `tsib.simulate_wood_stove(...)` en `tsib/renewables/wood_stove.py`. El módulo recibe `Heating Load` útil, asigna un objetivo de energía de combustible respetando la demanda, la potencia máxima, la disponibilidad y un perfil temporal opcional, y devuelve calor útil, entrada de combustible, masa, volumen y energía no asignada.
+
+El MVP es un modelo de capa de sistema posterior a 5R1C: no modifica `elecLoad`, no ejecuta combustión CFD y no retroalimenta todavía la temperatura interior. Esa dinámica queda reservada para la siguiente etapa, junto con eventos de encendido y almacenamiento térmico.
+
+Las pruebas están en `test/test_wood_stove.py` y cubren conservación de energía, límite por demanda, disponibilidad, potencia máxima, perfil temporal, pasos de 30 minutos y validación de parámetros.
