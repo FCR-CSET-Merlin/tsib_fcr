@@ -10,6 +10,19 @@ Versions `0.2.x+cl` were internal pre-releases of the fork and were never tagged
 `1.0.0` is the first stable, tagged release.
 
 ---
+## [1.1.0-rc.1] — 2026-09-17
+
+Release candidate for the 1.1.0 regional electricity calibration.
+
+### Changed
+
+- The Chilean regional residential electricity baseline now uses the supplied
+  `consumo_electrico_residencial_no_calefaccion_regional_2024.csv` table.
+- `kwh_por_persona_p11a` now excludes the MERLIN allocation for electric space
+  heating, while preserving the existing public API and hourly profile shape.
+- Tests and documentation now report the release-candidate source and values.
+
+
 
 ## [1.0.0] — 2026-09-10
 
@@ -220,4 +233,5 @@ default solver, Python 3.9, reworked typical-building querying). For upstream
 history before the fork, see the
 [upstream repository](https://github.com/FZJ-IEK3-VSA/tsib).
 
+[1.1.0-rc.1]: https://github.com/FCR-CSET-Merlin/tsib_fcr/releases/tag/v1.1.0-rc.1
 [1.0.0]: https://github.com/FCR-CSET-Merlin/tsib_fcr/releases/tag/v1.0.0

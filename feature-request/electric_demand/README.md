@@ -1,4 +1,5 @@
 # Consumo eléctrico residencial regional, 2024
+Esta nota conserva la tabla del balance residencial original. La librería usa la tabla derivada sin calefacción `tsib/data/chile/consumo_electrico_residencial_no_calefaccion_regional_2024.csv`, generada por MERLIN_RCP para descontar `calefaccion_electrica_merlin_gwh`.
 
 La tabla atribuye el consumo BNE de electricidad residencial a las viviendas que
 declaran conexión a red pública (`p9_fuente_elect = 1`) y a las personas que
@@ -38,13 +39,10 @@ Unidades: consumo BNE en teracalorías (Tcal); conversión de referencia:
 
 ## Integración en tsib-fcr
 
-La librería usa `kwh_por_persona_p11a` cuando `BuildingConfiguration` recibe
-`country="CL"` y `region`. El script de cálculo también actualiza la copia de
-runtime en `tsib/data/chile/consumo_electrico_residencial_regional_2024.csv`.
+La tabla de esta nota conserva el balance residencial original. Para generar la
+serie usada por la librería, MERLIN_RCP descuenta `calefaccion_electrica_merlin_gwh`
+y calcula `kwh_por_persona_p11a` con `consumo_electrico_no_calefaccion_gwh` y
+`personas_residentes_p11a`. La copia de runtime es
+`tsib/data/chile/consumo_electrico_residencial_no_calefaccion_regional_2024.csv`.
 El valor regional se multiplica por `n_persons` y `n_apartments`; la forma
 horaria existente no cambia.
-
-Esta cifra representa electricidad residencial total observada y puede incluir
-calefacción, refrigeración y ACS eléctricos. En el flujo previsto, esos usos se
-simulan por separado y luego se reconcilian con el balance energético; no deben
-sumarse directamente a esta línea base sin ese ajuste posterior.

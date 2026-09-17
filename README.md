@@ -1,15 +1,15 @@
 # tsib-fcr — Time Series Initialization for Buildings (Chile Fork)
 
-![version](https://img.shields.io/badge/version-1.0.0-blue)
-![status](https://img.shields.io/badge/status-stable-brightgreen)
+![version](https://img.shields.io/badge/version-1.1.0--rc.1-blue)
+![status](https://img.shields.io/badge/status-beta-orange)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
-**Version 1.0.0** (first stable release) · Fork of [FZJ-IEK3-VSA/tsib](https://github.com/FZJ-IEK3-VSA/tsib) adapted for Chilean residential buildings by [Fraunhofer Chile Research](https://www.fraunhofer.cl).
+**Version 1.1.0-rc.1** (release candidate) · Fork of [FZJ-IEK3-VSA/tsib](https://github.com/FZJ-IEK3-VSA/tsib) adapted for Chilean residential buildings by [Fraunhofer Chile Research](https://www.fraunhofer.cl).
 
 This fork adapts the ISO 13790 5R1C residential building thermal model to the Chilean context: zone-, period-, and material-resolved Chilean building archetypes, a BD Ancestral weather adapter, and a solver-free direct simulation path for thermal demand calculation.
 
-`1.0.0` marks the point where the public API below and the MERLIN_RCP interface contract in [`AGENT.md`](AGENT.md) are considered stable and covered by [Semantic Versioning](https://semver.org/): breaking changes will require a `2.0.0`. See [`CHANGELOG.md`](CHANGELOG.md) for the full list of what this release adds and changes relative to upstream tsib `0.2.x` and the earlier `0.2.x+cl` pre-releases.
+`1.0.0` established the stable public API and the MERLIN_RCP interface contract. `1.1.0-rc.1` is a release candidate for the updated regional electricity calibration; breaking changes will require a `2.0.0`. See [`CHANGELOG.md`](CHANGELOG.md) for the full list of what this release adds and changes relative to upstream tsib `0.2.x` and the earlier `0.2.x+cl` pre-releases.
 
 ---
 
@@ -21,7 +21,7 @@ This fork adapts the ISO 13790 5R1C residential building thermal model to the Ch
 | Weather adapter | DWD Testreferenzjahre (Germany) | + BD Ancestral TMY (`bd_tmy_to_tsib`) |
 | Demand calculation | LP solver required (HiGHS/CBC) | `sim_demand_direct()` — no solver needed |
 | Country kwarg | `'DE'` only | + `'CL'` with Chilean defaults |
-| Residential electricity | Household profile | + 2024 regional calibration using `kwh_por_persona_p11a` |
+| Residential electricity | Household profile | + 2024 regional non-heating calibration using `kwh_por_persona_p11a` |
 
 ---
 
@@ -149,7 +149,7 @@ See the "`sim_demand_direct()`" and "Domestic hot water" sections below for deta
 When `country="CL"` and `region` (integer 1--16) are provided,
 `BuildingConfiguration` calibrates the default hourly `elecLoad` using
 `kwh_por_persona_p11a` from
-[`consumo_electrico_residencial_regional_2024.csv`](tsib/data/chile/consumo_electrico_residencial_regional_2024.csv):
+[`consumo_electrico_residencial_no_calefaccion_regional_2024.csv`](tsib/data/chile/consumo_electrico_residencial_no_calefaccion_regional_2024.csv):
 
 ```text
 annual electricity per apartment
@@ -167,7 +167,7 @@ cfg = tsib.BuildingConfiguration({
     # ...building and weather inputs...
 }).getBdgCfg()
 
-# 951.01 kWh/person/year × 3 = 2853.03 kWh/apartment/year
+# 402.807487 kWh/person/year × 3 = 1208.422461 kWh/apartment/year
 cfg["electricityKwhPerPersonYear"]
 cfg["electricityKwhPerApartmentYear"]
 cfg["electricityProfileSource"]
@@ -178,16 +178,8 @@ regional calculation. If neither that override nor `region` is supplied, the
 backwards-compatible default remains 2500 kWh/apartment/year. The hourly shape
 is unchanged; only its annual normalization changes.
 
-**Source and methodological scope.** Regional electricity comes from the 2024
-regional residential balance (BNE), divided by residents (`p11a_num_personas`)
-in 2024 Census dwellings connected to the public grid. It represents total
-observed residential electricity, which may already include electric space
-heating, cooling and DHW. Those end uses are also estimated separately by the
-thermal simulation, so they must not be added blindly to this baseline. The
-intended workflow is to simulate the end uses first and subsequently reconcile
-the results against the regional/national energy balance. See the
-[calculation note](feature-request/electric_demand/README.md) for inputs and
-denominators.
+**Source and methodological scope.** Runtime data comes from the supplied 2024 regional residential balance after subtracting the MERLIN allocation in `calefaccion_electrica_merlin_gwh`. The value `kwh_por_persona_p11a` is `consumo_electrico_no_calefaccion_gwh` divided by `personas_residentes_p11a` from 2024 Census dwellings connected to the public grid. The baseline therefore excludes electric space heating, while other observed residential end uses may remain. See the
+[calculation note](feature-request/electric_demand/README.md) for the original inputs and denominators.
 
 ### 4. Occupancy profiles — currently unavailable in this fork
 
@@ -499,7 +491,7 @@ tsib/
     CL_episcope_base.csv     — 27-row geometry seed used to generate the Chilean catalogue
     CL_zone_uvalues.csv      — diagnostic U-value table (not read at runtime)
   data/chile/
-    consumo_electrico_residencial_regional_2024.csv — BNE/Census regional electricity calibration
+    consumo_electrico_residencial_no_calefaccion_regional_2024.csv — BNE/Census regional electricity calibration
   weather/
     testreferenceyear.py     — German DWD TRY adapter
     chile.py                 — BD Ancestral TMY adapter (bd_tmy_to_tsib)

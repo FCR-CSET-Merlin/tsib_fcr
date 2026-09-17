@@ -43,7 +43,7 @@ python -c "from pyomo.contrib import appsi; s = appsi.solvers.Highs(); print(s.a
 | 10 | `t_mains` alias recognition + null-handling in `bd_tmy_to_tsib` | `tsib/weather/chile.py` | ✅ |
 | 11 | Validation examples (`sim_demand_direct`, DHW) | `examples/chile/` | ✅ |
 | 12 | `material`/`thermalZone` kwargs; merged `CL_episcope.csv` (810 rows, 6 materials incl. `met`/`adobe` from MINVU/NCh853 literature, 5-segment ID) replaces MERLIN-injected U-values | `tsib/buildingconfig.py`, `tsib/data/episcope/` | ✅ |
-| 13 | Regional residential electricity from BNE 2024 / Census 2024 `kwh_por_persona_p11a` | `tsib/profiles.py`, `tsib/data/chile/` | ✅ |
+| 13 | Regional non-heating residential electricity from BNE 2024 / Census 2024 `kwh_por_persona_p11a` | `tsib/profiles.py`, `tsib/data/chile/` | ✅ |
 
 Tasks 7–11 implement the high-priority items from
 [`feature-request/README_request.md`](feature-request/README_request.md) (a request
