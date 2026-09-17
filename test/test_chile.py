@@ -197,12 +197,12 @@ def test_chile_regional_electricity_uses_kwh_per_person_p11a():
         ignore_profiles=True,
     ).getBdgCfg(includeSupply=False)
 
-    annual_per_apartment = 951.01 * 3
-    assert tsib.get_chile_regional_electricity_kwh_per_person(13) == pytest.approx(951.01)
+    annual_per_apartment = 402.807487 * 3
+    assert tsib.get_chile_regional_electricity_kwh_per_person(13) == pytest.approx(402.807487)
     assert cfg["region"] == 13
-    assert cfg["electricityKwhPerPersonYear"] == pytest.approx(951.01)
+    assert cfg["electricityKwhPerPersonYear"] == pytest.approx(402.807487)
     assert cfg["electricityKwhPerApartmentYear"] == pytest.approx(annual_per_apartment)
-    assert cfg["electricityProfileSource"] == "BNE2024_Censo2024_kwh_por_persona_p11a"
+    assert cfg["electricityProfileSource"] == "BNE2024_Censo2024_no_calefaccion_kwh_por_persona_p11a"
     assert cfg["elecLoad"].sum() == pytest.approx(
         annual_per_apartment * cfg["n_apartments"] * len(tmy) / 8760.0
     )

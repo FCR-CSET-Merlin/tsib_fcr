@@ -8,7 +8,7 @@ with open(os.path.join(dir_path, "README.md"), "r") as fh:
 
 setuptools.setup(
     name="tsib-fcr",
-    version="1.0.0",
+    version="1.1.0rc1",
     author="Pablo Castillo, Fraunhofer Chile Research",
     author_email="pablo.castillo@fraunhofer.cl",
     description="Time Series Initialization for Buildings — Chile fork",
@@ -21,7 +21,7 @@ setuptools.setup(
     setup_requires=["setuptools-git"],
     python_requires=">=3.9",
     classifiers=[
-        "Development Status :: 5 - Production/Stable",
+        "Development Status :: 4 - Beta",
         "Intended Audience :: End Users/Desktop",
         "Intended Audience :: Science/Research",
         "License :: OSI Approved :: MIT License",

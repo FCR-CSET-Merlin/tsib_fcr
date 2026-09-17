@@ -385,7 +385,7 @@ class BuildingConfiguration(object):
                     cfg["electricityProfileSource"] = (
                         "explicit_autoProfileElectricityKwhPerApartment"
                         if self._explicit_auto_profile_electricity
-                        else "BNE2024_Censo2024_kwh_por_persona_p11a"
+                        else "BNE2024_Censo2024_no_calefaccion_kwh_por_persona_p11a"
                         if region is not None
                         else "default_2500_kwh_per_apartment"
                     )

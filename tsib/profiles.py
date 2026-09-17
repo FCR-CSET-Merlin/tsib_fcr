@@ -13,7 +13,7 @@ _CHILE_REGIONAL_ELECTRICITY_PATH = (
     Path(__file__).parent
     / "data"
     / "chile"
-    / "consumo_electrico_residencial_regional_2024.csv"
+    / "consumo_electrico_residencial_no_calefaccion_regional_2024.csv"
 )
 _CHILE_REGIONAL_ELECTRICITY = pd.read_csv(
     _CHILE_REGIONAL_ELECTRICITY_PATH,
@@ -22,7 +22,7 @@ _CHILE_REGIONAL_ELECTRICITY = pd.read_csv(
 
 
 def get_chile_regional_electricity_kwh_per_person(region):
-    """Return 2024 residential electricity use [kWh/person/year] by region."""
+    """Return 2024 residential electricity excluding heating [kWh/person/year]."""
     if isinstance(region, (bool, np.bool_)) or not isinstance(region, (int, np.integer)):
         raise ValueError(f"region must be an integer from 1 to 16; got {region!r}.")
     try:
