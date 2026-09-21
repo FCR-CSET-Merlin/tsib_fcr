@@ -91,7 +91,14 @@ def _resolve_dt(index, dt_hours):
         return dt
 
     if isinstance(index, pd.DatetimeIndex) and len(index) > 1:
-        differences = np.diff(index.asi8) / 3.6e12
+        differences = (
+            index.to_series()
+            .diff()
+            .dropna()
+            .dt.total_seconds()
+            .to_numpy()
+            / 3600.0
+        )
         if not np.all(np.isfinite(differences)) or np.any(differences <= 0):
             raise ValueError('DatetimeIndex must be strictly increasing.')
         if not np.allclose(differences, differences[0]):
@@ -131,6 +138,32 @@ def _allocate_useful_heat(load, capacity, weights, dt, target):
         active[capped_ix] = False
 
     return useful, max(0.0, remaining)
+
+
+def _heating_load_from_5r1c(source, heating_column):
+    """Extract a 5R1C heating-load Series without changing the source."""
+    if isinstance(source, pd.DataFrame):
+        detailed_results = source
+    elif hasattr(source, "thermalmodel"):
+        detailed_results = getattr(source.thermalmodel, "detailedResults", None)
+    else:
+        detailed_results = getattr(source, "detailedResults", None)
+
+    if not isinstance(detailed_results, pd.DataFrame):
+        raise TypeError(
+            "source must be a 5R1C model, a Building wrapper, or a "
+            "DataFrame containing detailedResults."
+        )
+    if heating_column not in detailed_results:
+        raise ValueError(
+            f'5R1C results do not contain "{heating_column}". '
+            "Run sim_demand_direct() or sim5R1C() before connecting the stove."
+        )
+
+    heating_load = detailed_results[heating_column]
+    if not isinstance(heating_load, pd.Series):
+        heating_load = pd.Series(heating_load, index=detailed_results.index)
+    return heating_load
 
 
 def simulate_wood_stove(
@@ -269,4 +302,52 @@ def simulate_wood_stove(
         wood_volume_stere=volume_stere,
         efficiency=efficiency,
         dt_hours=dt,
+    )
+
+
+def simulate_wood_stove_from_5r1c(
+    source,
+    *,
+    fuel_energy_target_kwh,
+    dt_hours=None,
+    heating_column="Heating Load",
+    **stove_kwargs,
+):
+    """Connect a completed 5R1C simulation to the wood-stove model.
+
+    Parameters
+    ----------
+    source : Building5R1C, Building, or pandas.DataFrame
+        A completed 5R1C model, the high-level ``tsib.Building`` wrapper, or
+        its ``detailedResults`` DataFrame. The source is read-only.
+    fuel_energy_target_kwh : float
+        Chemical energy target for the stove, before efficiency losses.
+    dt_hours : float, optional
+        Timestep in hours. If omitted, it is inferred from the result index
+        when that index is a regular DatetimeIndex.
+    heating_column : str, optional
+        Column containing useful 5R1C heating demand. Defaults to
+        ``"Heating Load"``.
+    **stove_kwargs
+        Additional keyword arguments accepted by :func:`simulate_wood_stove`,
+        such as ``efficiency``, ``max_useful_power_kw``, ``availability`` and
+        ``event_profile``.
+
+    Returns
+    -------
+    WoodStoveResult
+        The same energy-balanced result as :func:`simulate_wood_stove`.
+
+    Notes
+    -----
+    This adapter does not run 5R1C automatically and does not mutate the
+    model, its detailed results, or ``elecLoad``. Run the thermal simulation
+    first, then pass its output to this function.
+    """
+    heating_load = _heating_load_from_5r1c(source, heating_column)
+    return simulate_wood_stove(
+        heating_load,
+        dt_hours=dt_hours,
+        fuel_energy_target_kwh=fuel_energy_target_kwh,
+        **stove_kwargs,
     )

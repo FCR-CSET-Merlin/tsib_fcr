@@ -5,7 +5,11 @@ from .setpoints import get_chile_monthly_setpoints
 from .weather.testreferenceyear import readTRY, TRY2TMY, getISO12831weather
 from .weather.other import readCosmo
 from .renewables.fireplace import simFireplace
-from .renewables.wood_stove import WoodStoveResult, simulate_wood_stove
+from .renewables.wood_stove import (
+    WoodStoveResult,
+    simulate_wood_stove,
+    simulate_wood_stove_from_5r1c,
+)
 from .renewables.solar import simPhotovoltaic, simSolarThermal
 from .renewables.heatpump import simHeatpump
 from .thermal.model5R1C import Building5R1C

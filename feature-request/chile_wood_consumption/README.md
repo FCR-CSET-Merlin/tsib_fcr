@@ -137,3 +137,31 @@ La rama incluye `tsib.simulate_wood_stove(...)` en `tsib/renewables/wood_stove.p
 El MVP es un modelo de capa de sistema posterior a 5R1C: no modifica `elecLoad`, no ejecuta combustión CFD y no retroalimenta todavía la temperatura interior. Esa dinámica queda reservada para la siguiente etapa, junto con eventos de encendido y almacenamiento térmico.
 
 Las pruebas están en `test/test_wood_stove.py` y cubren conservación de energía, límite por demanda, disponibilidad, potencia máxima, perfil temporal, pasos de 30 minutos y validación de parámetros.
+
+## Integración con 5R1C
+
+La función `tsib.simulate_wood_stove_from_5r1c(...)` conecta una simulación
+5R1C ya ejecutada con el módulo de estufa sin modificar el modelo de edificio
+ni `elecLoad`:
+
+```python
+model = tsib.Building5R1C(cfg)
+model.sim_demand_direct()
+
+stove = tsib.simulate_wood_stove_from_5r1c(
+    model,
+    fuel_energy_target_kwh=target_fuel_kwh,
+    efficiency=0.50,
+)
+```
+
+El argumento `source` puede ser un objeto `Building5R1C`, el wrapper de alto
+nivel `Building` o el `DataFrame` `detailedResults`. La simulación 5R1C debe
+ejecutarse previamente mediante `sim_demand_direct()` o `sim5R1C()`; el
+adaptador falla explícitamente si no existe la columna `Heating Load`.
+
+El ejemplo reproducible
+[`examples/chile/wood_stove_5r1c.py`](../../examples/chile/wood_stove_5r1c.py)
+usa una vivienda chilena y meteorología sintética determinista. La selección
+de una vivienda y un año meteorológico observacional queda reservada para la
+Fase 5 de validación.

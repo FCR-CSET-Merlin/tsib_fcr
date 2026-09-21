@@ -1,6 +1,6 @@
 # Plan — Estado del arte y módulo 5R1C para estufa a leña
 
-**Estado:** Fases 0–1 ejecutadas y MVP de la Fase 3 implementado; quedan pendientes el acoplamiento dinámico, la validación con datos y el PR.
+**Estado:** Fases 0–4 ejecutadas; quedan pendientes la validación con datos, la segunda etapa dinámica de eventos/almacenamiento y el PR.
 **Rama:** `feature/chile-wood-stove-simulation`
 **Objetivo:** identificar enfoques publicados y diseñar una primera implementación de calefacción con estufa a leña compatible con `tsib-fcr`, sin duplicar energía ni alterar `elecLoad`.
 
@@ -207,7 +207,9 @@ La integración inicial recomendada es posterior al cálculo 5R1C: recibe una se
 - Documentar el punto de integración y el contrato de series.
 - Añadir un ejemplo reproducible para una vivienda chilena.
 
-**Salida:** integración opcional y documentación de API.
+**Salida:** integración opcional y documentación de API. Implementada mediante
+`simulate_wood_stove_from_5r1c(...)` y
+`examples/chile/wood_stove_5r1c.py`, usando un caso sintético determinista.
 
 ### Fase 5 — Validación
 
@@ -220,7 +222,26 @@ La integración inicial recomendada es posterior al cálculo 5R1C: recibe una se
 
 **Salida:** informe corto de validación y límites.
 
-### Fase 6 — Entrega
+### Fase 6 — Segunda etapa: eventos y almacenamiento
+
+Esta fase se ejecutará después de validar el adaptador y el balance del MVP.
+Su alcance queda limitado a una dinámica de baja dimensión, compatible con
+el flujo 5R1C:
+
+- definir estados de operación: apagada, encendido, combustión y enfriamiento;
+- representar eventos de carga de leña y perfiles de liberación de calor;
+- añadir un estado térmico de almacenamiento o calor residual de la estufa;
+- limitar el calor entregado por potencia, disponibilidad y demanda;
+- documentar si el acoplamiento será iteración externa o entrada térmica
+  explícita al 5R1C;
+- comparar la versión por eventos con el MVP mediante pruebas de conservación
+  de energía y sensibilidad temporal.
+
+**Salida:** módulo dinámico de eventos y almacenamiento, con pruebas y un
+caso sintético de referencia. La combustión CFD, emisiones y calidad del aire
+quedan fuera de esta etapa.
+
+### Fase 7 — Entrega
 
 - Actualizar README y CHANGELOG.
 - Revisar compatibilidad de empaquetado.

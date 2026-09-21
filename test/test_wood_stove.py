@@ -84,3 +84,54 @@ def test_wood_stove_rejects_invalid_energy_parameters(kwargs):
 def test_wood_stove_rejects_negative_heating_load():
     with pytest.raises(ValueError, match="heating_load"):
         tsib.simulate_wood_stove(np.array([-0.1]), fuel_energy_target_kwh=1.0)
+
+
+def test_wood_stove_adapter_consumes_5r1c_results_without_mutation():
+    index = pd.date_range("2024-07-01", periods=3, freq="h")
+    detailed_results = pd.DataFrame(
+        {
+            "Heating Load": [1.0, 2.0, 0.0],
+            "Electricity Load": [0.5, 0.5, 0.5],
+        },
+        index=index,
+    )
+    original = detailed_results.copy(deep=True)
+
+    result = tsib.simulate_wood_stove_from_5r1c(
+        detailed_results,
+        fuel_energy_target_kwh=1.5,
+        efficiency=0.5,
+    )
+
+    assert result.heating_load_kw.index.equals(index)
+    assert result.assigned_useful_energy_kwh == pytest.approx(0.75)
+    pd.testing.assert_frame_equal(detailed_results, original)
+
+
+def test_wood_stove_adapter_accepts_thermal_model_like_source():
+    class Fake5R1C:
+        detailedResults = pd.DataFrame(
+            {"Heating Load": [2.0, 2.0]},
+            index=pd.date_range("2024-07-01", periods=2, freq="h"),
+        )
+
+    class FakeBuilding:
+        thermalmodel = Fake5R1C()
+
+    result = tsib.simulate_wood_stove_from_5r1c(
+        FakeBuilding(),
+        fuel_energy_target_kwh=1.0,
+        efficiency=0.5,
+    )
+
+    assert result.assigned_useful_energy_kwh == pytest.approx(0.5)
+
+
+def test_wood_stove_adapter_requires_completed_5r1c_results():
+    empty_results = pd.DataFrame(index=pd.date_range("2024-07-01", periods=2, freq="h"))
+
+    with pytest.raises(ValueError, match="sim_demand_direct"):
+        tsib.simulate_wood_stove_from_5r1c(
+            empty_results,
+            fuel_energy_target_kwh=1.0,
+        )

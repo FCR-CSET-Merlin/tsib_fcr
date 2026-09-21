@@ -505,6 +505,7 @@ tsib/
 |--------|-------------|
 | [`examples/santiago_AB/santiago_ab_calibration.py`](examples/santiago_AB/santiago_ab_calibration.py) | Real-world calibration of a 219-unit concrete apartment block in downtown Santiago (2005) against monthly gas billing data. Covers ACS + heating demand separation, gas volume conversion, and monthly error breakdown. |
 | [`examples/chile/validation_direct_5r1c.py`](examples/chile/validation_direct_5r1c.py) | Reproducible, deterministic validation case for `sim_demand_direct()` with hourly setpoints and an HVAC availability mask (fixed archetype, synthetic TMY, no randomness). |
+| [`examples/chile/wood_stove_5r1c.py`](examples/chile/wood_stove_5r1c.py) | Reproducible Phase 4 example connecting a Chilean 5R1C heating-load simulation to the wood-stove system-layer model. |
 | [`examples/chile/validation_dhw.py`](examples/chile/validation_dhw.py) | Reproducible, deterministic validation case for `calculate_dhw_load()` with a synthetic hourly `t_mains` series and a normalized daily draw-off shape. |
 
 ---
