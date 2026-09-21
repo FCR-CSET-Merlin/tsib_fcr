@@ -30,3 +30,5 @@ PCI = 15 MJ/kg.
 
 Los perfiles horarios completos están en
 `winter_day_hourly_profile.csv`.
+
+![Perfil horario de temperatura, potencia y leña](winter_day_profile.png)
