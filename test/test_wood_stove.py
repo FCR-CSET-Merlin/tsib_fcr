@@ -213,3 +213,34 @@ def test_event_stove_adapter_consumes_5r1c_results():
 
     assert result.event_count == 1
     assert result.heating_load_kw.index.equals(detailed_results.index)
+
+
+def test_event_parameter_calibration_uses_mvp_as_numerical_reference():
+    load = pd.Series([1.0, 0.0, 1.0, 0.0])
+    calibration = tsib.calibrate_wood_stove_event_parameters(
+        load,
+        fuel_energy_target_kwh=1.0,
+        candidate_parameters=[
+            {
+                "event_fuel_energy_kwh": 1.0,
+                "event_duration_hours": 1.0,
+                "min_event_interval_hours": 1.0,
+                "storage_capacity_kwh": 1.0,
+            },
+            {
+                "event_fuel_energy_kwh": 2.0,
+                "event_duration_hours": 2.0,
+                "min_event_interval_hours": 4.0,
+                "storage_capacity_kwh": 0.25,
+            },
+        ],
+    )
+
+    assert len(calibration.trials) == 2
+    assert calibration.trials["valid"].all()
+    assert calibration.best_parameters["event_fuel_energy_kwh"] == 2.0
+    best_trial = calibration.trials.loc[calibration.trials["score"].idxmin()]
+    assert best_trial["profile_error_kwh"] == pytest.approx(0.0)
+    assert calibration.best_result.assigned_useful_energy_kwh == pytest.approx(
+        calibration.reference_result.assigned_useful_energy_kwh
+    )

@@ -160,6 +160,9 @@ pérdidas, potencia de descarga y estados operativos. Su alcance y supuestos
 están documentados en
 [`PHASE6_EVENTS_STORAGE.md`](PHASE6_EVENTS_STORAGE.md), con un ejemplo en
 [`examples/chile/wood_stove_events.py`](../../examples/chile/wood_stove_events.py).
+La función `tsib.calibrate_wood_stove_event_parameters(...)` permite una
+calibración numérica contra el MVP cuando no hay observaciones físicas; no debe
+interpretarse como calibración del comportamiento real.
 
 ## Integración con 5R1C
 

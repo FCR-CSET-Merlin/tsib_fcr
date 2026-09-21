@@ -272,6 +272,14 @@ pérdidas exponenciales, potencia de descarga y un controlador determinista de
 umbral. No modifica `Building5R1C` ni `elecLoad`; sus supuestos y pruebas están
 en `PHASE6_EVENTS_STORAGE.md`.
 
+Se agregó `calibrate_wood_stove_event_parameters(...)` para calibración de
+consistencia contra el MVP, incluyendo una métrica de diferencia del perfil
+horario. La corrida de referencia sobre un registro por región y 144
+combinaciones queda en `outputs/chile_wood_stove_event_calibration/`; también
+transfiere los parámetros seleccionados al escenario `REDPE_mid` cuando existe.
+Al no haber datos físicos, estos parámetros no se consideran estimación del
+comportamiento real.
+
 ### Fase 7 — Entrega
 
 - Actualizar README y CHANGELOG.

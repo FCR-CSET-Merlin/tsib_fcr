@@ -90,6 +90,45 @@ Las pruebas en `test/test_wood_stove.py` cubren:
 El ejemplo reproducible está en
 [`examples/chile/wood_stove_events.py`](../../examples/chile/wood_stove_events.py).
 
+## Calibración numérica sin datos físicos
+
+Cuando no existen observaciones de encendido o temperatura interior, la
+función `tsib.calibrate_wood_stove_event_parameters(...)` realiza una
+calibración de consistencia. Usa el MVP como referencia para la misma serie
+`Heating Load` y el mismo objetivo de combustible, y evalúa:
+
+- diferencia de energía útil anual;
+- diferencia de combustible asignado;
+- diferencia absoluta del perfil horario útil;
+- demanda no satisfecha;
+- derrame del almacenamiento;
+- energía remanente al final del horizonte.
+
+El score resultante no es un error físico observado. Sólo permite seleccionar
+parámetros dinámicos que no rompan el balance ni cambien arbitrariamente la
+escala anual del MVP.
+
+El script
+[`examples/chile/calibrate_wood_stove_events.py`](../../examples/chile/calibrate_wood_stove_events.py)
+ejecuta una grilla de 144 combinaciones sobre un registro representativo por
+región, usando ERA5 2024. También transfiere el mejor conjunto de parámetros a
+`REDPE_mid` en las regiones disponibles y reporta la demanda no satisfecha y
+la energía no asignada. Los resultados se guardan en
+`outputs/chile_wood_stove_event_calibration/`.
+
+La corrida de referencia usó 16 registros, 144 candidatos por registro y
+2.304 evaluaciones válidas. El mejor conjunto reproduce el combustible anual
+del MVP en los 16 registros y no deja derrame ni combustible sin asignar para
+el objetivo `coverage_mid`; sin embargo, el error horario mediano del perfil
+útil fue 1.674,6 kWh. Esto confirma el balance anual, pero también muestra que
+la regla de eventos todavía no reproduce la distribución temporal del MVP.
+
+Al transferir esos parámetros al objetivo `REDPE_mid`, las nueve regiones con
+datos presentan energía no asignada en la mayoría de los casos porque el
+objetivo REDPE excede la energía que la regla de eventos consigue quemar en el
+horizonte bajo sus intervalos y tamaños de carga. Esta diferencia es un
+resultado de control y horizonte, no una estimación física del consumo.
+
 ## Límites de esta primera versión
 
 - El controlador es una regla determinista de umbral, no un modelo de
@@ -102,6 +141,7 @@ El ejemplo reproducible está en
   se modela todavía modulación ni encendido parcial físico.
 - Combustión detallada, emisiones y calidad del aire siguen fuera del alcance.
 
-La siguiente tarea de esta fase es seleccionar parámetros de eventos con datos
-de uso y comparar la versión dinámica contra el MVP y REDPE antes de evaluar
-un acoplamiento térmico externo.
+La siguiente tarea de esta fase es ampliar la muestra de validación y, si
+aparecen datos de uso, reemplazar esta calibración de consistencia por una
+calibración física. El acoplamiento térmico externo debe evaluarse sólo
+después de esa comparación.

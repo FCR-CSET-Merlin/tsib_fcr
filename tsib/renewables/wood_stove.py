@@ -797,3 +797,193 @@ def simulate_wood_stove_events_from_5r1c(
         fuel_energy_target_kwh=fuel_energy_target_kwh,
         **stove_kwargs,
     )
+
+
+@dataclass(frozen=True)
+class WoodStoveEventCalibrationResult:
+    """Result of numerical event-parameter calibration against the MVP."""
+
+    reference_result: WoodStoveResult
+    best_result: WoodStoveEventResult
+    best_parameters: dict
+    trials: pd.DataFrame
+
+
+def calibrate_wood_stove_event_parameters(
+    heating_load,
+    *,
+    fuel_energy_target_kwh,
+    candidate_parameters,
+    efficiency=0.50,
+    pci_mj_per_kg=15.0,
+    density_t_per_solid_m3=0.7,
+    solid_m3_per_stere=0.64,
+    score_weights=None,
+):
+    """Select event/storage parameters using the MVP as numerical reference.
+
+    This helper is deliberately a *numerical calibration*: it has no physical
+    observations and must not be interpreted as estimating real user
+    behaviour.  It compares every candidate event model against
+    :func:`simulate_wood_stove` for the same heating load and annual fuel
+    target.  The default score favours matching annual useful heat and fuel
+    and the hourly useful-heat profile, then penalizes unmet demand, storage
+    spill and energy left in storage at the end of the horizon.
+
+    Parameters
+    ----------
+    heating_load : pandas.Series or array-like
+        Useful space-heating demand in kW.
+    fuel_energy_target_kwh : float
+        Common chemical-energy target passed to the MVP and every candidate.
+    candidate_parameters : iterable of mappings
+        Event/storage keyword dictionaries accepted by
+        :func:`simulate_wood_stove_events`, for example
+        ``event_fuel_energy_kwh`` or ``storage_capacity_kwh``.  Common fuel
+        conversion parameters are supplied by the explicit function
+        arguments and should not be repeated in a candidate.
+    score_weights : mapping, optional
+        Weights for ``useful``, ``fuel``, ``profile``, ``unmet``, ``spill`` and
+        ``end_storage``.
+
+    Returns
+    -------
+    WoodStoveEventCalibrationResult
+        MVP reference, best dynamic result, selected parameters and a trial
+        table. Invalid candidates remain in the table with ``valid=False``.
+    """
+    candidates = [dict(candidate) for candidate in candidate_parameters]
+    if not candidates:
+        raise ValueError('"candidate_parameters" must not be empty.')
+
+    forbidden = {
+        "heating_load",
+        "dt_hours",
+        "fuel_energy_target_kwh",
+        "efficiency",
+        "pci_mj_per_kg",
+        "density_t_per_solid_m3",
+        "solid_m3_per_stere",
+    }
+    for candidate in candidates:
+        repeated = sorted(forbidden.intersection(candidate))
+        if repeated:
+            raise ValueError(
+                "candidate parameters must not override common inputs: "
+                + ", ".join(repeated)
+            )
+
+    reference = simulate_wood_stove(
+        heating_load,
+        fuel_energy_target_kwh=fuel_energy_target_kwh,
+        efficiency=efficiency,
+        pci_mj_per_kg=pci_mj_per_kg,
+        density_t_per_solid_m3=density_t_per_solid_m3,
+        solid_m3_per_stere=solid_m3_per_stere,
+    )
+    weights = {
+        "useful": 1.0,
+        "fuel": 0.5,
+        "profile": 0.5,
+        "unmet": 0.25,
+        "spill": 0.25,
+        "end_storage": 0.25,
+    }
+    if score_weights is not None:
+        unknown = set(score_weights).difference(weights)
+        if unknown:
+            raise ValueError(
+                "unknown score weights: " + ", ".join(sorted(unknown))
+            )
+        weights.update({key: float(value) for key, value in score_weights.items()})
+    if any(not np.isfinite(value) or value < 0 for value in weights.values()):
+        raise ValueError("score weights must be finite and non-negative.")
+
+    useful_scale = max(reference.target_useful_energy_kwh, 1.0)
+    fuel_scale = max(reference.target_fuel_energy_kwh, 1.0)
+    trial_rows = []
+    trial_results = []
+    for trial_index, candidate in enumerate(candidates):
+        row = {"trial": trial_index, **candidate}
+        try:
+            dynamic = simulate_wood_stove_events(
+                heating_load,
+                fuel_energy_target_kwh=fuel_energy_target_kwh,
+                efficiency=efficiency,
+                pci_mj_per_kg=pci_mj_per_kg,
+                density_t_per_solid_m3=density_t_per_solid_m3,
+                solid_m3_per_stere=solid_m3_per_stere,
+                **candidate,
+            )
+            useful_error = abs(
+                dynamic.assigned_useful_energy_kwh
+                - reference.assigned_useful_energy_kwh
+            )
+            fuel_error = abs(
+                dynamic.assigned_fuel_energy_kwh
+                - reference.assigned_fuel_energy_kwh
+            )
+            unmet_error = abs(
+                dynamic.unmet_heating_energy_kwh
+                - reference.unmet_heating_energy_kwh
+            )
+            profile_error = float(
+                np.sum(
+                    np.abs(
+                        dynamic.useful_heat_kw.to_numpy()
+                        - reference.useful_heat_kw.to_numpy()
+                    )
+                )
+                * dynamic.dt_hours
+            )
+            score = (
+                weights["useful"] * useful_error / useful_scale
+                + weights["fuel"] * fuel_error / fuel_scale
+                + weights["profile"] * profile_error / useful_scale
+                + weights["unmet"] * unmet_error / useful_scale
+                + weights["spill"]
+                * dynamic.storage_spill_energy_kwh
+                / useful_scale
+                + weights["end_storage"]
+                * dynamic.stored_energy_end_kwh
+                / useful_scale
+            )
+            row.update(
+                {
+                    "valid": True,
+                    "error": None,
+                    "score": score,
+                    "assigned_useful_energy_kwh": dynamic.assigned_useful_energy_kwh,
+                    "assigned_fuel_energy_kwh": dynamic.assigned_fuel_energy_kwh,
+                    "profile_error_kwh": profile_error,
+                    "unmet_heating_energy_kwh": dynamic.unmet_heating_energy_kwh,
+                    "storage_spill_energy_kwh": dynamic.storage_spill_energy_kwh,
+                    "stored_energy_end_kwh": dynamic.stored_energy_end_kwh,
+                    "event_count": dynamic.event_count,
+                }
+            )
+            trial_results.append(dynamic)
+        except (TypeError, ValueError, FloatingPointError) as error:
+            row.update(
+                {
+                    "valid": False,
+                    "error": str(error),
+                    "score": np.inf,
+                }
+            )
+            trial_results.append(None)
+        trial_rows.append(row)
+
+    trials = pd.DataFrame(trial_rows)
+    valid = trials[trials["valid"]].sort_values(
+        ["score", "event_count", "trial"], kind="stable"
+    )
+    if valid.empty:
+        raise ValueError("No candidate event parameter set produced a valid result.")
+    best_trial = int(valid.iloc[0]["trial"])
+    return WoodStoveEventCalibrationResult(
+        reference_result=reference,
+        best_result=trial_results[best_trial],
+        best_parameters=candidates[best_trial],
+        trials=trials,
+    )
