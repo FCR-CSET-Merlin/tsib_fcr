@@ -24,10 +24,9 @@ Concepcion: a single-family dwelling, classified as a wood-heating user, with
 the median area/person count among a filtered regional cohort at the time the
 case was selected. Change ``--edificio-id`` for another database snapshot.
 
-This script deliberately does not claim calibration against REDPE. Its
-low/mid/high scenarios are useful-heating coverage sensitivities. A REDPE
-target must be supplied separately once the corresponding regional table is
-available and traceable.
+This script separates useful-heating coverage sensitivities from the built-in
+REDPE 2020 regional range. The REDPE scenarios are reference fuel targets,
+not a claim that one dwelling has been individually calibrated.
 """
 
 from __future__ import annotations
@@ -283,8 +282,15 @@ def _scenario_rows(model, building, year, efficiency):
     heating_load = model.detailedResults["Heating Load"]
     demand_kwh = float(heating_load.sum())
     rows = []
-    for scenario, coverage in SCENARIO_USEFUL_COVERAGE.items():
-        target_fuel = demand_kwh * coverage / efficiency
+
+    def add_result(
+        scenario,
+        target_fuel,
+        coverage=None,
+        source="coverage_sensitivity",
+        redpe_case=None,
+        redpe_target_m3st=None,
+    ):
         result = tsib.simulate_wood_stove_from_5r1c(
             model,
             fuel_energy_target_kwh=target_fuel,
@@ -301,6 +307,9 @@ def _scenario_rows(model, building, year, efficiency):
                 "tipo_comb_calef": building["tipo_comb_calef"],
                 "heating_demand_kwh": demand_kwh,
                 "scenario": scenario,
+                "scenario_source": source,
+                "redpe_case": redpe_case,
+                "redpe_target_m3st": redpe_target_m3st,
                 "useful_coverage_target": coverage,
                 "efficiency": efficiency,
                 "target_fuel_energy_kwh": target_fuel,
@@ -312,6 +321,21 @@ def _scenario_rows(model, building, year, efficiency):
                 "wood_volume_solid_m3": result.wood_volume_solid_m3,
                 "wood_volume_stere": result.wood_volume_stere,
             }
+        )
+
+    for scenario, coverage in SCENARIO_USEFUL_COVERAGE.items():
+        target_fuel = demand_kwh * coverage / efficiency
+        add_result(scenario, target_fuel, coverage=coverage)
+
+    redpe_region = int(building["codigo_region"])
+    for redpe_case in ("low", "mid", "high"):
+        redpe = tsib.get_chile_regional_wood_consumption(redpe_region, redpe_case)
+        add_result(
+            f"redpe_{redpe_case}",
+            float(redpe["energy_bruta_mwh_per_consumer"]) * 1000.0,
+            source="REDPE_2020",
+            redpe_case=redpe_case,
+            redpe_target_m3st=float(redpe["consumption_m3st_per_consumer"]),
         )
     return pd.DataFrame(rows)
 

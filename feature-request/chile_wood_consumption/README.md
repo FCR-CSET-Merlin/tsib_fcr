@@ -38,6 +38,21 @@ commit `c78c443e1739adbce8d6648f7c42a38496394c34`:
 Los valores de consumo son energía de entrada de combustible; no son demanda
 térmica útil ni promedios de todas las viviendas de una región.
 
+La tabla regional REDPE incorporada en la librería es
+`tsib/data/chile/lena_consumo_residencial_redpe_2020.csv`. Se puede consultar
+mediante:
+
+```python
+redpe = tsib.get_chile_regional_wood_consumption(8, "mid")
+redpe["consumption_m3st_per_consumer"]
+redpe["energy_bruta_mwh_per_consumer"]
+```
+
+La tabla cubre las regiones con filas REDPE disponibles en la fuente 2017
+(RM, O'Higgins, Maule, Biobío, Araucanía, Los Ríos, Los Lagos, Aysén y
+Magallanes). Ñuble no tiene una fila independiente en esta fuente histórica;
+la función falla explícitamente en vez de imputar un valor.
+
 ## Modelo propuesto
 
 Para una vivienda que usa leña para calefacción:
@@ -175,9 +190,10 @@ credenciales se entregan mediante `GEONODE_HOST`, `GEONODE_PORT`,
 local pasado con `--env-file`; nunca deben escribirse en el repositorio.
 
 El script ejecuta tres sensibilidades de cobertura útil de calefacción (`low`,
-`mid`, `high`) y no las presenta como calibración REDPE. Para una comparación
-REDPE, el objetivo de combustible debe incorporarse como un insumo regional
-trazable y reportarse por separado de esta sensibilidad.
+`mid`, `high`) y tres escenarios REDPE (`redpe_low`, `redpe_mid`,
+`redpe_high`). Los escenarios REDPE usan la energía bruta por vivienda
+consumidora de la tabla incorporada y reportan por separado el calor útil
+asignado, la demanda no satisfecha y la energía no asignada.
 
 Las dependencias opcionales para ese script están en
 `requirements-validation.txt`:

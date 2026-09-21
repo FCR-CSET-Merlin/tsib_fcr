@@ -4,6 +4,7 @@ arrays, building daily-shape profiles, and computing domestic hot water (DHW)
 thermal demand from a water-mains temperature series.
 """
 from pathlib import Path
+import unicodedata
 
 import numpy as np
 import pandas as pd
@@ -20,6 +21,48 @@ _CHILE_REGIONAL_ELECTRICITY = pd.read_csv(
     usecols=["region", "kwh_por_persona_p11a"],
 ).set_index("region", verify_integrity=True)
 
+_CHILE_REGIONAL_WOOD_PATH = (
+    Path(__file__).parent
+    / "data"
+    / "chile"
+    / "lena_consumo_residencial_redpe_2020.csv"
+)
+_CHILE_REGIONAL_WOOD = pd.read_csv(_CHILE_REGIONAL_WOOD_PATH).set_index(
+    "region", verify_integrity=True
+)
+_REDPE_REGION_BY_NUMBER = {
+    6: "O'Higgins",
+    7: "Maule",
+    8: "Biobio",
+    9: "Araucania",
+    10: "Los Lagos",
+    11: "Aysen",
+    12: "Magallanes",
+    13: "RM",
+    14: "Los Rios",
+}
+
+
+def _normalize_region_name(value):
+    value = unicodedata.normalize("NFKD", str(value))
+    value = "".join(char for char in value if not unicodedata.combining(char))
+    return value.strip().casefold().replace(" ", "")
+
+
+_REDPE_REGION_BY_NAME = {
+    _normalize_region_name(name): name for name in _CHILE_REGIONAL_WOOD.index
+}
+_REDPE_REGION_BY_NAME.update(
+    {
+        "metropolitana": "RM",
+        "regionmetropolitana": "RM",
+        "ohiggins": "O'Higgins",
+        "biobio": "Biobio",
+        "araucania": "Araucania",
+        "aysen": "Aysen",
+    }
+)
+
 
 def get_chile_regional_electricity_kwh_per_person(region):
     """Return 2024 residential electricity excluding heating [kWh/person/year]."""
@@ -34,6 +77,70 @@ def get_chile_regional_electricity_kwh_per_person(region):
     if not np.isfinite(value) or value <= 0:
         raise ValueError(f"Invalid regional electricity value for region {region!r}.")
     return value
+
+
+def get_chile_regional_wood_consumption(region, consumption_case="mid"):
+    """Return the REDPE regional wood-consumption range by consumer dwelling.
+
+    Parameters
+    ----------
+    region : int or str
+        Chilean region number (the table covers 6--14, excluding 15 and 16)
+        or a regional name such as ``8``/``"Biobio"``/``"RM"``.
+    consumption_case : {"low", "mid", "high"}
+        Lower bound, midpoint, or upper bound of the reported range.
+
+    Returns
+    -------
+    dict
+        A copy of the selected REDPE row with ``consumption_m3st_per_consumer``
+        and ``energy_bruta_mwh_per_consumer`` added. The energy values are
+        chemical input energy calculated with PCI = 15 MJ/kg.
+
+    Notes
+    -----
+    The source describes the average of dwellings that consume wood, not all
+    dwellings in the region. The table is a 2017 reference and does not contain
+    a row for every current Chilean region; missing regions must be handled
+    explicitly by the caller.
+    """
+    if isinstance(region, (bool, np.bool_)):
+        raise ValueError(f"Unknown REDPE region: {region!r}.")
+    if isinstance(region, (int, np.integer)):
+        region_name = _REDPE_REGION_BY_NUMBER.get(int(region))
+    else:
+        region_name = _REDPE_REGION_BY_NAME.get(_normalize_region_name(region))
+    if region_name is None or region_name not in _CHILE_REGIONAL_WOOD.index:
+        available = ", ".join(str(value) for value in _CHILE_REGIONAL_WOOD.index)
+        raise ValueError(
+            f"No REDPE wood-consumption row for region {region!r}. "
+            f"Available rows: {available}."
+        )
+
+    if consumption_case not in {"low", "mid", "high"}:
+        raise ValueError(
+            f"consumption_case must be 'low', 'mid' or 'high'; got {consumption_case!r}."
+        )
+
+    row = _CHILE_REGIONAL_WOOD.loc[region_name].to_dict()
+    lower_m3 = float(row["consumo_por_vivienda_consumidora_inferior_m3st_anual"])
+    upper_m3 = float(row["consumo_por_vivienda_consumidora_superior_m3st_anual"])
+    lower_mwh = float(row["energia_bruta_inferior_mwh_anual_pci_15_mj_kg"])
+    upper_mwh = float(row["energia_bruta_superior_mwh_anual_pci_15_mj_kg"])
+    if consumption_case == "low":
+        selected_m3, selected_mwh = lower_m3, lower_mwh
+    elif consumption_case == "high":
+        selected_m3, selected_mwh = upper_m3, upper_mwh
+    else:
+        selected_m3 = (lower_m3 + upper_m3) / 2.0
+        selected_mwh = (lower_mwh + upper_mwh) / 2.0
+
+    row["region"] = region_name
+    row["consumption_case"] = consumption_case
+    row["consumption_m3st_per_consumer"] = selected_m3
+    row["energy_bruta_mwh_per_consumer"] = selected_mwh
+    row["pci_mj_per_kg"] = 15.0
+    return row
 
 
 def as_hourly_series(value, index, name="value"):

@@ -83,6 +83,22 @@ def test_country_cl_accepted():
     })
 
 
+def test_redpe_wood_consumption_lookup_by_numeric_region_and_case():
+    low = tsib.get_chile_regional_wood_consumption(8, "low")
+    mid = tsib.get_chile_regional_wood_consumption("Biobio", "mid")
+    high = tsib.get_chile_regional_wood_consumption(8, "high")
+
+    assert low["region"] == "Biobio"
+    assert low["consumption_m3st_per_consumer"] == pytest.approx(5.50)
+    assert mid["consumption_m3st_per_consumer"] == pytest.approx((5.50 + 8.79) / 2)
+    assert high["energy_bruta_mwh_per_consumer"] == pytest.approx(16.40)
+
+
+def test_redpe_wood_consumption_rejects_uncovered_region():
+    with pytest.raises(ValueError, match="No REDPE wood-consumption row"):
+        tsib.get_chile_regional_wood_consumption(16, "mid")
+
+
 def test_direct_archetype_id_is_consumed_without_unused_kwarg_warning():
     """A direct CL archetype ID selects its row and is not reported unused."""
     tmy = _make_synthetic_tmy()

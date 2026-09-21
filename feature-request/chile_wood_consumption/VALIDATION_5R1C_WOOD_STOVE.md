@@ -1,6 +1,6 @@
 # Validación inicial 5R1C + estufa a leña con GeoNode
 
-**Estado:** validación de pipeline completada; calibración REDPE pendiente.
+**Estado:** validación de pipeline y comparación inicial con el rango REDPE completadas; calibración de cohorte pendiente.
 
 ## 1. Objetivo
 
@@ -30,6 +30,7 @@ El caso se ejecutó con:
 | Año local | 2024 |
 | Cobertura | 8.784 horas, de `2024-01-01 00:00` a `2024-12-31 23:00` hora local |
 | Eficiencia de estufa | 0,50 |
+| Tabla REDPE | `tsib/data/chile/lena_consumo_residencial_redpe_2020.csv` |
 
 La vivienda se seleccionó como caso representativo de una cohorte de casas de
 Concepción con `tipo_comb_calef='lena'`, arquetipo válido, área entre 45 y
@@ -84,6 +85,16 @@ Se evaluaron tres sensibilidades. La cobertura es una fracción de la demanda
 | `mid` | 75% | 11.664,759 kWh | 5.832,380 kWh | 1.944,127 kWh | 6,249 m³ st |
 | `high` | 100% | 15.553,012 kWh | 7.776,506 kWh | 0,000 kWh | 8,332 m³ st |
 
+También se aplicó el rango REDPE de Biobío para una vivienda consumidora. La
+tabla fuente entrega energía bruta redondeada; por eso el volumen calculado a
+partir de la energía puede diferir marginalmente del volumen tabulado:
+
+| Escenario | REDPE objetivo | Combustible objetivo | Calor útil asignado | No asignado | Demanda no satisfecha | Leña asignada |
+|---|---:|---:|---:|---:|---:|---:|
+| `redpe_low` | 5,500 m³ st | 10.270 kWh | 5.135 kWh | 0 kWh | 2.641,506 kWh | 5,502 m³ st |
+| `redpe_mid` | 7,145 m³ st | 13.335 kWh | 6.667,5 kWh | 0 kWh | 1.109,006 kWh | 7,144 m³ st |
+| `redpe_high` | 8,790 m³ st | 16.400 kWh | 7.776,506 kWh | 846,988 kWh | 0 kWh | 8,332 m³ st |
+
 En los tres casos la energía de combustible asignada coincide con el objetivo
 y el calor útil es `eficiencia × combustible`. Como la potencia no se limitó y
 el objetivo fue construido desde la demanda, no aparece energía no asignada.
@@ -96,26 +107,25 @@ Esta validación confirma el pipeline:
 GeoNode vivienda → CUT → ERA5/ERA5-Land → 5R1C → estufa → balance de leña
 ```
 
-No confirma que la vivienda consuma 4,17–8,33 m³ estéreo/año. Esos valores son
-sensibilidades construidas deliberadamente para probar cobertura y balance.
-La ejecución tampoco utiliza una medición de temperatura interior, factura,
-encendido real ni perfil individual de ocupación. `Q_ig`, personas y setpoints
-son supuestos reproducibles del caso.
+No confirma que la vivienda consuma exactamente los valores REDPE. El rango
+REDPE es regional y por vivienda consumidora, mientras que la simulación es
+individual y utiliza supuestos de arquetipo, `Q_ig`, personas y setpoints. El
+resultado sí muestra cuándo el objetivo regional puede ser absorbido por la
+demanda 5R1C y cuándo debe reportarse como energía no asignada.
 
-La comparación REDPE queda pendiente hasta incorporar una tabla regional
-versionada con consumo por vivienda consumidora y sus escenarios inferior,
-medio y superior. Esa comparación debe reportar por separado el objetivo de
-combustible, el calor útil que la demanda 5R1C puede absorber y la energía no
-asignada cuando el consumo observado excede la demanda simulada.
+La ejecución tampoco utiliza una medición de temperatura interior, factura,
+encendido real ni perfil individual de ocupación.
+
+La comparación regional completa queda pendiente. La tabla ya está integrada,
+pero se debe ejecutar una cohorte de viviendas consumidoras y comparar sus
+distribuciones con el rango REDPE; no basta con un único edificio.
 
 ## 6. Siguiente paso de validación
 
-1. Incorporar la tabla REDPE regional como entrada explícita, sin mezclarla con
-   el código de conexión GeoNode.
-2. Ejecutar una cohorte estratificada por región, zona térmica, arquetipo y
+1. Ejecutar una cohorte estratificada por región, zona térmica, arquetipo y
    tipo de combustible, no sólo una vivienda.
-3. Comparar consumo de leña en m³ estéreo por vivienda consumidora, calor útil
+2. Comparar consumo de leña en m³ estéreo por vivienda consumidora, calor útil
    asignado y demanda no satisfecha.
-4. Repetir la sensibilidad para eficiencia, PCI y paso temporal.
-5. Sólo después fijar la especificación de eventos de encendido y
+3. Repetir la sensibilidad para eficiencia, PCI y paso temporal.
+4. Sólo después fijar la especificación de eventos de encendido y
    almacenamiento térmico de la Fase 6.

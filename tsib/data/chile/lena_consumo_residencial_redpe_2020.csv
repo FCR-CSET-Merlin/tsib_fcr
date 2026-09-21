@@ -1,0 +1,10 @@
+region,anio,penetracion_lena_pct,viviendas_censo_2017,consumo_total_inferior_m3st_anual,consumo_total_superior_m3st_anual,consumo_por_vivienda_consumidora_inferior_m3st_anual,consumo_por_vivienda_consumidora_superior_m3st_anual,masa_inferior_t_anual,masa_superior_t_anual,energia_bruta_inferior_mwh_anual_pci_15_mj_kg,energia_bruta_superior_mwh_anual_pci_15_mj_kg,fuente_limite_superior
+RM,2017,4.57,2378490,281940,326446,2.59,3.00,1.16,1.35,4.84,5.61,UACH (2013)
+O'Higgins,2017,47.70,354324,591112,683149,3.50,4.04,1.57,1.81,6.53,7.55,Reyes et al. (2020)
+Maule,2017,61.10,411211,879875,1806887,3.50,7.19,1.57,3.22,6.54,13.42,Reyes et al. (2018)
+Biobio,2017,66.60,768162,2813436,4495239,5.50,8.79,2.46,3.94,10.27,16.40,INFOR (2019)
+Araucania,2017,85.80,381170,2517281,4714219,7.70,14.41,3.45,6.46,14.37,26.91,INFOR (2019)
+Los Rios,2017,89.60,153990,1945422,1961807,14.10,14.22,6.32,6.37,26.32,26.54,Reyes (2017)
+Los Lagos,2017,92.20,332935,4235207,5647570,13.80,18.40,6.18,8.24,25.75,34.34,UACH (2013)
+Aysen,2017,94.70,44726,741196,1364923,17.50,32.23,7.84,14.44,32.67,60.15,UACH (2013)
+Magallanes,2017,1.60,65641,19071,29964,18.16,28.53,8.13,12.78,33.90,53.26,UACH (2013)

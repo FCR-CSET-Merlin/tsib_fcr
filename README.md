@@ -492,6 +492,7 @@ tsib/
     CL_zone_uvalues.csv      — diagnostic U-value table (not read at runtime)
   data/chile/
     consumo_electrico_residencial_no_calefaccion_regional_2024.csv — BNE/Census regional electricity calibration
+    lena_consumo_residencial_redpe_2020.csv                    — REDPE 2017 regional wood-consumption range
   weather/
     testreferenceyear.py     — German DWD TRY adapter
     chile.py                 — BD Ancestral TMY adapter (bd_tmy_to_tsib)
