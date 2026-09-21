@@ -247,3 +247,9 @@ Magallanes, Los Ríos, Los Lagos y Araucanía. El análisis está en
 [`SETPOINT_SENSITIVITY_SOUTH.md`](SETPOINT_SENSITIVITY_SOUTH.md) y se puede
 reproducir con
 `examples/chile/analyze_wood_stove_setpoint_sensitivity.py`.
+
+Para inspeccionar un día horario se puede usar
+`examples/chile/inspect_wood_stove_winter_day.py`. El ejemplo de Natales
+selecciona el día invernal más frío y exporta temperatura ambiente, temperatura
+interior, potencia de combustión, calor útil y masa de leña por hora en
+`outputs/chile_wood_stove_winter_day_magallanes/`.

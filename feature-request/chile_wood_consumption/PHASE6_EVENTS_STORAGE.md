@@ -175,6 +175,14 @@ también aumentó la demanda no satisfecha. El análisis está documentado en
 `SETPOINT_SENSITIVITY_SOUTH.md` y sus CSV quedan en
 `outputs/chile_wood_stove_setpoint_sensitivity_south/`.
 
+También se agregó
+`examples/chile/inspect_wood_stove_winter_day.py`, que simula el año completo
+de un inmueble representativo de Magallanes y extrae el día invernal más frío.
+La salida contiene `T_amb`, `T_air`, temperaturas internas 5R1C, potencia de
+combustión, calor útil, estado de almacenamiento y masa horaria de leña. El
+caso de Natales (`edificio_id=2577343`) queda en
+`outputs/chile_wood_stove_winter_day_magallanes/`.
+
 La corrida de referencia del script base usó 16 registros, uno por región,
 144 candidatos por registro y 2.304 evaluaciones válidas. El mejor conjunto
 reproduce el combustible anual del MVP en esos registros y no deja derrame ni
