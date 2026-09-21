@@ -1,7 +1,7 @@
 # Validación inicial 5R1C + estufa a leña con GeoNode
 
 **Estado:** validación de pipeline, dispersión regional de 500 registros y
-calibración numérica de control contra `REDPE_mid` completadas; calibración
+calibración numérica regional contra `REDPE_mid` completadas; calibración
 física pendiente.
 
 ## 1. Objetivo
@@ -118,9 +118,13 @@ demanda 5R1C y cuándo debe reportarse como energía no asignada.
 La ejecución tampoco utiliza una medición de temperatura interior, factura,
 encendido real ni perfil individual de ocupación.
 
-La comparación regional completa queda pendiente. La tabla ya está integrada,
-pero se debe ejecutar una cohorte de viviendas consumidoras y comparar sus
-distribuciones con el rango REDPE; no basta con un único edificio.
+La comparación regional ampliada se ejecutó con una cohorte de 500 registros,
+cuotas proporcionales a las unidades con calefacción a leña y un holdout
+determinista por región. Sus resultados por vivienda, parámetros compartidos y
+errores contra `REDPE_mid` están en
+`outputs/chile_wood_stove_regional_cohort_calibration/`. Esta calibración es
+numérica: no reemplaza una calibración física con consumo o temperatura
+interior observados.
 
 La corrida ampliada de dispersión fue ejecutada con 500 registros
 `edificio_id`, mínimo 10 por región y cuotas proporcionales a las unidades con
@@ -133,10 +137,8 @@ antes de ampliar la calibración numérica regional.
 
 ## 6. Siguiente paso de validación
 
-1. Ejecutar la calibración `redpe_mid` sobre una cohorte regional ampliada,
-   agregando región, zona térmica y arquetipo en el objetivo.
-2. Comparar consumo de leña en m³ estéreo por vivienda consumidora, calor útil
+1. Comparar consumo de leña en m³ estéreo por vivienda consumidora, calor útil
    asignado y demanda no satisfecha usando factores de expansión.
-3. Repetir la sensibilidad para eficiencia, PCI y paso temporal.
-4. Incorporar datos de temperatura interior, encendido o consumo medido si se
+2. Repetir la sensibilidad para eficiencia, PCI y paso temporal.
+3. Incorporar datos de temperatura interior, encendido o consumo medido si se
    busca reemplazar la calibración numérica por calibración física.

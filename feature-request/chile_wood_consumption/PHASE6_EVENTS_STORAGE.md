@@ -1,7 +1,8 @@
 # Fase 6 — Eventos y almacenamiento de la estufa a leña
 
-**Estado:** primera implementación de referencia completada; calibración y
-retroalimentación térmica quedan pendientes.
+**Estado:** primera implementación de referencia y calibración numérica
+regional completadas; calibración física y retroalimentación térmica quedan
+pendientes.
 
 ## Alcance
 
@@ -145,12 +146,33 @@ en las siete regiones restantes quedó registrado el fallback
 `MVP_coverage_mid`. Esto confirma la ruta numérica de calibración, pero no
 constituye validación física.
 
-La corrida de referencia usó 16 registros, 144 candidatos por registro y
-2.304 evaluaciones válidas. El mejor conjunto reproduce el combustible anual
-del MVP en los 16 registros y no deja derrame ni combustible sin asignar para
-el objetivo `coverage_mid`; sin embargo, el error horario mediano del perfil
-útil fue 1.674,6 kWh. Esto confirma el balance anual, pero también muestra que
-la regla de eventos todavía no reproduce la distribución temporal del MVP.
+Para evitar sobreajustar cada vivienda, la calibración de cohorte usa
+`examples/chile/calibrate_wood_stove_regional_cohort.py`. Construye un perfil
+horario regional ponderado por `n_inmuebles`, ajusta un único conjunto de
+parámetros por región y evalúa esos parámetros en todos los registros. Los
+rangos impares de `regional_sample_rank` forman el ajuste y los rangos pares
+el holdout. La corrida de 500 registros se guarda en
+`outputs/chile_wood_stove_regional_cohort_calibration/`.
+
+En esta corrida se evaluaron 144 candidatos por cada una de las 16 regiones
+(2.304 evaluaciones). Nueve regiones usaron `REDPE_mid` y siete usaron
+`MVP_coverage_mid` por ausencia de una fila REDPE aplicable. Para las regiones
+REDPE, el error relativo ponderado del holdout quedó entre `-0,6%` (RM) y
+`-31,5%` (Magallanes). La subestimación no se oculta con un ajuste forzado:
+la función penaliza explícitamente la diferencia entre combustible asignado y
+energía REDPE objetivo, pero conserva y reporta el combustible no asignado y
+la demanda no satisfecha cuando la combinación de demanda 5R1C, potencia y
+regla de eventos no puede absorber todo el objetivo anual. El detalle por
+región, inmueble y candidato se encuentra en el CSV de resultados y en el
+README de la salida.
+
+La corrida de referencia del script base usó 16 registros, uno por región,
+144 candidatos por registro y 2.304 evaluaciones válidas. El mejor conjunto
+reproduce el combustible anual del MVP en esos registros y no deja derrame ni
+combustible sin asignar para el objetivo `coverage_mid`; sin embargo, el error
+horario mediano del perfil útil fue 1.674,6 kWh. Esto confirma el balance anual,
+pero también muestra que la regla de eventos todavía no reproduce la
+distribución temporal del MVP.
 
 Al transferir esos parámetros al objetivo `REDPE_mid`, las nueve regiones con
 datos presentan energía no asignada en la mayoría de los casos porque el

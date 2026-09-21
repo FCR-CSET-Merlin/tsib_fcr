@@ -1,7 +1,7 @@
 # Plan — Estado del arte y módulo 5R1C para estufa a leña
 
-**Estado:** Fases 0–5 ejecutadas; Fase 6 implementada con eventos,
-almacenamiento y calibración numérica contra `REDPE_mid`; queda pendiente la
+**Estado:** Fases 0–6 ejecutadas; Fase 6 incluye eventos, almacenamiento y
+calibración numérica regional contra `REDPE_mid`. Queda pendiente la
 calibración física, evaluar retroalimentación térmica y preparar el PR.
 **Rama:** `feature/chile-wood-stove-simulation`
 **Objetivo:** identificar enfoques publicados y diseñar una primera implementación de calefacción con estufa a leña compatible con `tsib-fcr`, sin duplicar energía ni alterar `elecLoad`.
@@ -283,7 +283,18 @@ transfiere los parámetros seleccionados al escenario `REDPE_mid` cuando existe.
 El script admite `--calibration-target redpe_mid`, con fallback explícito a
 `MVP_coverage_mid` en regiones sin datos REDPE. La corrida de control queda en
 `outputs/chile_wood_stove_redpe_calibration/`. Al no haber datos físicos, estos
-parámetros no se consideran estimación del comportamiento real.
+parámetros no se consideran estimación del comportamiento real. Para la
+cohorte ampliada se agregó
+`examples/chile/calibrate_wood_stove_regional_cohort.py`, que ajusta un único
+conjunto de parámetros por región sobre perfiles horarios ponderados y valida
+en un holdout determinista de los 500 registros. La corrida produjo 2.304
+evaluaciones válidas (144 candidatos × 16 regiones), con 9 regiones ajustadas
+contra `REDPE_mid` y 7 regiones usando el fallback documentado
+`MVP_coverage_mid`. El objetivo REDPE se compara explícitamente con el
+combustible asignado; no se fuerza el resultado cuando la demanda 5R1C o la
+regla de eventos no permiten quemar toda la energía objetivo. El detalle de
+errores, combustible no asignado, demanda no satisfecha y parámetros está en
+`outputs/chile_wood_stove_regional_cohort_calibration/`.
 
 ### Fase 7 — Entrega
 

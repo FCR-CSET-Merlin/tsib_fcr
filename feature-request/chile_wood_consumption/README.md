@@ -230,3 +230,14 @@ puede usar `examples/chile/calibrate_wood_stove_events.py --calibration-target
 redpe_mid`. La opción `--total-samples` usa la misma cuota proporcional del
 análisis regional; por defecto la calibración mantiene una muestra pequeña por
 región para no multiplicar innecesariamente la grilla de 144 candidatos.
+
+La calibración regional de cohorte, con un único conjunto de parámetros por
+región y validación holdout, se ejecuta con
+`examples/chile/calibrate_wood_stove_regional_cohort.py` y deja sus resultados
+en `outputs/chile_wood_stove_regional_cohort_calibration/`. La corrida de 500
+registros evalúa 144 candidatos por región sobre perfiles 5R1C agregados y
+ponderados por `n_inmuebles`; nueve regiones se calibran contra `REDPE_mid` y
+las siete restantes usan `MVP_coverage_mid` como fallback explícito. El
+objetivo REDPE se compara directamente con el combustible asignado y se
+reportan por separado el combustible no asignado y la demanda no satisfecha,
+sin forzar que ambos balances coincidan.
