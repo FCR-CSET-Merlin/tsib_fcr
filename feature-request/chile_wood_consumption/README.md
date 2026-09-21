@@ -195,6 +195,13 @@ El script ejecuta tres sensibilidades de cobertura útil de calefacción (`low`,
 consumidora de la tabla incorporada y reportan por separado el calor útil
 asignado, la demanda no satisfecha y la energía no asignada.
 
+La primera corrida de dispersión regional está documentada en
+[`REGIONAL_DISPERSION_WOOD_STOVE.md`](REGIONAL_DISPERSION_WOOD_STOVE.md). El
+script [`examples/chile/analyze_wood_stove_regional_dispersion.py`](../../examples/chile/analyze_wood_stove_regional_dispersion.py)
+selecciona 10 registros `edificio_id` por región, usa ERA5 2024 y genera el
+resumen en `outputs/chile_wood_stove_regional_dispersion/`. La muestra es
+exploratoria: un `edificio_id` puede representar varias unidades habitacionales.
+
 Las dependencias opcionales para ese script están en
 `requirements-validation.txt`:
 

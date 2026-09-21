@@ -237,6 +237,14 @@ verificados; el validador ahora ejecuta las sensibilidades de cobertura y los
 escenarios REDPE por separado para no confundir demanda útil simulada con
 consumo regional observado.
 
+Se agregó además `examples/chile/analyze_wood_stove_regional_dispersion.py`,
+que ejecuta 10 registros `edificio_id` por región usando una muestra
+determinista y estratificada por comuna. La corrida 2024 completó 160
+simulaciones, sin errores, y dejó el resumen en
+`outputs/chile_wood_stove_regional_dispersion/`. Esta evidencia se considera
+exploratoria; aún falta definir la unidad de calibración REDPE y ampliar la
+muestra si se necesitan cuantiles regionales robustos.
+
 ### Fase 6 — Segunda etapa: eventos y almacenamiento
 
 Esta fase se ejecutará después de validar el adaptador y el balance del MVP.

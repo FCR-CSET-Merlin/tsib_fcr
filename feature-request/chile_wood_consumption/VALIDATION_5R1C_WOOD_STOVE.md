@@ -1,6 +1,6 @@
 # Validación inicial 5R1C + estufa a leña con GeoNode
 
-**Estado:** validación de pipeline y comparación inicial con el rango REDPE completadas; calibración de cohorte pendiente.
+**Estado:** validación de pipeline y primera dispersión regional completadas; calibración de cohorte REDPE pendiente.
 
 ## 1. Objetivo
 
@@ -119,6 +119,14 @@ encendido real ni perfil individual de ocupación.
 La comparación regional completa queda pendiente. La tabla ya está integrada,
 pero se debe ejecutar una cohorte de viviendas consumidoras y comparar sus
 distribuciones con el rango REDPE; no basta con un único edificio.
+
+La primera corrida exploratoria de dispersión ya fue ejecutada con 10 registros
+`edificio_id` por región. Sus supuestos, resultados y limitaciones están en
+[`REGIONAL_DISPERSION_WOOD_STOVE.md`](REGIONAL_DISPERSION_WOOD_STOVE.md), con
+los CSV reproducibles en
+`outputs/chile_wood_stove_regional_dispersion/`. Esta corrida confirma que hay
+registros válidos en las 16 regiones y permite dimensionar la variabilidad
+antes de definir una cohorte de calibración.
 
 ## 6. Siguiente paso de validación
 
