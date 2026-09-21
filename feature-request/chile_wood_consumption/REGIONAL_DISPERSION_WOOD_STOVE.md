@@ -141,6 +141,8 @@ Los resultados quedan en
   consumidoras y con una definición explícita de unidad (`edificio_id`,
   `n_inmuebles` o vivienda consumidora).
 
-El siguiente paso recomendado es ampliar la muestra o aplicar un diseño
-estratificado por región, comuna, arquetipo y área, antes de calibrar la
-dinámica de eventos y almacenamiento de la Fase 6.
+La Fase 6 ya inició con el modelo de eventos y almacenamiento documentado en
+`PHASE6_EVENTS_STORAGE.md`. El siguiente paso es calibrar sus parámetros de
+carga, duración, pérdidas y capacidad, y comparar su resultado temporal con el
+MVP y REDPE antes de incorporar retroalimentación sobre la temperatura
+interior.

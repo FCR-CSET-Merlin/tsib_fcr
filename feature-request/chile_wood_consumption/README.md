@@ -153,6 +153,14 @@ El MVP es un modelo de capa de sistema posterior a 5R1C: no modifica `elecLoad`,
 
 Las pruebas están en `test/test_wood_stove.py` y cubren conservación de energía, límite por demanda, disponibilidad, potencia máxima, perfil temporal, pasos de 30 minutos y validación de parámetros.
 
+La segunda etapa dinámica está disponible en
+`tsib.simulate_wood_stove_events(...)`. Añade cargas discretas de leña,
+combustión distribuida por evento, almacenamiento térmico de un estado,
+pérdidas, potencia de descarga y estados operativos. Su alcance y supuestos
+están documentados en
+[`PHASE6_EVENTS_STORAGE.md`](PHASE6_EVENTS_STORAGE.md), con un ejemplo en
+[`examples/chile/wood_stove_events.py`](../../examples/chile/wood_stove_events.py).
+
 ## Integración con 5R1C
 
 La función `tsib.simulate_wood_stove_from_5r1c(...)` conecta una simulación

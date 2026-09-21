@@ -1,6 +1,6 @@
 # Plan — Estado del arte y módulo 5R1C para estufa a leña
 
-**Estado:** Fases 0–4 ejecutadas; Fase 5 implementada con tabla REDPE, conexión GeoNode/ERA5 y un validador reproducible; queda pendiente ampliar la cohorte, la segunda etapa dinámica de eventos/almacenamiento y el PR.
+**Estado:** Fases 0–5 ejecutadas; Fase 6 iniciada con eventos y almacenamiento térmico de baja dimensión; queda pendiente calibrar parámetros, evaluar retroalimentación térmica y preparar el PR.
 **Rama:** `feature/chile-wood-stove-simulation`
 **Objetivo:** identificar enfoques publicados y diseñar una primera implementación de calefacción con estufa a leña compatible con `tsib-fcr`, sin duplicar energía ni alterar `elecLoad`.
 
@@ -263,6 +263,14 @@ el flujo 5R1C:
 **Salida:** módulo dinámico de eventos y almacenamiento, con pruebas y un
 caso sintético de referencia. La combustión CFD, emisiones y calidad del aire
 quedan fuera de esta etapa.
+
+**Avance:** implementado en `tsib.renewables.wood_stove` mediante
+`simulate_wood_stove_events(...)` y
+`simulate_wood_stove_events_from_5r1c(...)`. La primera versión usa cargas de
+energía química fija, una curva de combustión, almacenamiento de un estado,
+pérdidas exponenciales, potencia de descarga y un controlador determinista de
+umbral. No modifica `Building5R1C` ni `elecLoad`; sus supuestos y pruebas están
+en `PHASE6_EVENTS_STORAGE.md`.
 
 ### Fase 7 — Entrega
 

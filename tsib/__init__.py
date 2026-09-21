@@ -7,8 +7,11 @@ from .weather.other import readCosmo
 from .renewables.fireplace import simFireplace
 from .renewables.wood_stove import (
     WoodStoveResult,
+    WoodStoveEventResult,
     simulate_wood_stove,
     simulate_wood_stove_from_5r1c,
+    simulate_wood_stove_events,
+    simulate_wood_stove_events_from_5r1c,
 )
 from .renewables.solar import simPhotovoltaic, simSolarThermal
 from .renewables.heatpump import simHeatpump

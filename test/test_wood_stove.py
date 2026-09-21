@@ -135,3 +135,81 @@ def test_wood_stove_adapter_requires_completed_5r1c_results():
             empty_results,
             fuel_energy_target_kwh=1.0,
         )
+
+
+def test_event_stove_releases_heat_from_storage_after_combustion():
+    load = pd.Series([2.0, 0.0, 1.0, 0.0])
+    result = tsib.simulate_wood_stove_events(
+        load,
+        fuel_energy_target_kwh=2.0,
+        efficiency=0.5,
+        event_fuel_energy_kwh=2.0,
+        event_duration_hours=2.0,
+        min_event_interval_hours=4.0,
+        storage_capacity_kwh=2.0,
+    )
+
+    assert result.event_count == 1
+    assert result.event_start.iloc[0]
+    assert result.event_state.iloc[0] == "combustion"
+    assert result.event_state.iloc[1] == "combustion"
+    assert result.event_state.iloc[2] == "release"
+    assert result.assigned_fuel_energy_kwh == pytest.approx(2.0)
+    assert result.assigned_useful_energy_kwh == pytest.approx(1.0)
+    assert result.unmet_heating_energy_kwh == pytest.approx(2.0)
+    assert result.stored_energy_end_kwh == pytest.approx(0.0)
+    assert result.useful_heat_kw.iloc[2] == pytest.approx(0.5)
+
+
+def test_event_stove_reports_storage_spill_and_unallocated_useful_energy():
+    result = tsib.simulate_wood_stove_events(
+        pd.Series([1.0, 0.0]),
+        fuel_energy_target_kwh=2.0,
+        efficiency=0.5,
+        event_fuel_energy_kwh=2.0,
+        event_duration_hours=2.0,
+        storage_capacity_kwh=0.25,
+    )
+
+    assert result.event_count == 1
+    assert result.assigned_fuel_energy_kwh == pytest.approx(2.0)
+    assert result.assigned_useful_energy_kwh == pytest.approx(0.25)
+    assert result.storage_spill_energy_kwh == pytest.approx(0.5)
+    assert result.unallocated_useful_energy_kwh == pytest.approx(0.75)
+    assert result.unmet_heating_energy_kwh == pytest.approx(0.75)
+
+
+def test_event_stove_validates_event_shape_and_power():
+    with pytest.raises(ValueError, match="event_profile"):
+        tsib.simulate_wood_stove_events(
+            [1.0, 1.0],
+            fuel_energy_target_kwh=1.0,
+            event_duration_hours=2.0,
+            event_profile=[1.0],
+        )
+
+    with pytest.raises(ValueError, match="max_combustion_power_kw"):
+        tsib.simulate_wood_stove_events(
+            [1.0, 1.0],
+            fuel_energy_target_kwh=2.0,
+            event_fuel_energy_kwh=2.0,
+            event_duration_hours=2.0,
+            max_combustion_power_kw=0.1,
+        )
+
+
+def test_event_stove_adapter_consumes_5r1c_results():
+    detailed_results = pd.DataFrame(
+        {"Heating Load": [1.0, 0.0, 1.0]},
+        index=pd.date_range("2024-07-01", periods=3, freq="h"),
+    )
+    result = tsib.simulate_wood_stove_events_from_5r1c(
+        detailed_results,
+        fuel_energy_target_kwh=1.0,
+        event_fuel_energy_kwh=1.0,
+        event_duration_hours=1.0,
+        storage_capacity_kwh=1.0,
+    )
+
+    assert result.event_count == 1
+    assert result.heating_load_kw.index.equals(detailed_results.index)
