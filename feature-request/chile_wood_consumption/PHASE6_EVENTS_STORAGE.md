@@ -166,6 +166,14 @@ regla de eventos no puede absorber todo el objetivo anual. El detalle por
 región, inmueble y candidato se encuentra en el CSV de resultados y en el
 README de la salida.
 
+Como sensibilidad adicional, se evaluaron setpoints invernales constantes de
+22 °C y 24 °C en Magallanes, Los Ríos, Los Lagos y Araucanía, manteniendo
+fijos los parámetros de eventos calibrados. La demanda aumentó y la brecha
+contra `REDPE_mid` se redujo en las cuatro regiones, pero también aumentó la
+demanda no satisfecha. El análisis está documentado en
+`SETPOINT_SENSITIVITY_SOUTH.md` y sus CSV quedan en
+`outputs/chile_wood_stove_setpoint_sensitivity_south/`.
+
 La corrida de referencia del script base usó 16 registros, uno por región,
 144 candidatos por registro y 2.304 evaluaciones válidas. El mejor conjunto
 reproduce el combustible anual del MVP en esos registros y no deja derrame ni

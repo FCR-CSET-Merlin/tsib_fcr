@@ -241,3 +241,9 @@ las siete restantes usan `MVP_coverage_mid` como fallback explícito. El
 objetivo REDPE se compara directamente con el combustible asignado y se
 reportan por separado el combustible no asignado y la demanda no satisfecha,
 sin forzar que ambos balances coincidan.
+
+También se ejecutó una sensibilidad de setpoint invernal a 22 °C y 24 °C para
+Magallanes, Los Ríos, Los Lagos y Araucanía. El análisis está en
+[`SETPOINT_SENSITIVITY_SOUTH.md`](SETPOINT_SENSITIVITY_SOUTH.md) y se puede
+reproducir con
+`examples/chile/analyze_wood_stove_setpoint_sensitivity.py`.

@@ -234,7 +234,8 @@ def _archetype_parameters(code):
     }
 
 
-def _build_model(building, weather):
+def _build_model(building, weather, winter_heating_setpoint=None):
+    """Build and solve 5R1C, optionally overriding June-August heating setpoints."""
     archetype = _archetype_parameters(building["episcope_archetype"])
     n_units = int(building["n_inmuebles"] or 1)
     n_units = max(n_units, 1)
@@ -274,7 +275,24 @@ def _build_model(building, weather):
     )
 
     model = tsib.Building5R1C(cfg)
-    model.sim_demand_direct()
+    if winter_heating_setpoint is None:
+        model.sim_demand_direct()
+    else:
+        heating_setpoint = pd.Series(
+            cfg["heatingSetpointProfile"], index=weather.index
+        )
+        cooling_setpoint = pd.Series(
+            cfg["coolingSetpointProfile"], index=weather.index
+        )
+        winter = heating_setpoint.index.month.isin((6, 7, 8))
+        heating_setpoint.loc[winter] = float(winter_heating_setpoint)
+        cooling_setpoint.loc[winter] = np.maximum(
+            cooling_setpoint.loc[winter], float(winter_heating_setpoint) + 1.0
+        )
+        model.sim_demand_direct(
+            heating_setpoint=heating_setpoint,
+            cooling_setpoint=cooling_setpoint,
+        )
     return model, archetype, persons, area_m2
 
 
