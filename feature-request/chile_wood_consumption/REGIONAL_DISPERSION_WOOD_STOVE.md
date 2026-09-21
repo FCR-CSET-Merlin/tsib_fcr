@@ -81,6 +81,41 @@ Antofagasta. Las medianas más altas están en Magallanes, Aysén, Los Lagos,
 Ñuble y Los Ríos. Son resultados exploratorios: no permiten todavía afirmar
 que esas regiones tengan esa distribución poblacional de consumo.
 
+## Comparación inicial con REDPE
+
+La comparación se realizó contra la tabla REDPE 2020, que contiene consumos
+anuales de 2017 en m³ estéreo por vivienda consumidora. El escenario simulado
+`coverage_mid` no es una observación: representa 75% de cobertura útil con una
+eficiencia de estufa de 0,50. Por ello, su volumen corresponde a la demanda de
+combustible de la vivienda modelada, mientras que REDPE representa consumo
+regional observado por vivienda consumidora.
+
+| Región | REDPE bajo–alto (m³ st/a) | REDPE medio | Simulación mediana P10–P90 | Mediana / REDPE medio | Dentro del rango REDPE |
+|---|---:|---:|---:|---:|---:|
+| O’Higgins | 3,50–4,04 | 3,77 | 4,49 (1,61–9,73) | 1,19 | 1/10 |
+| Maule | 3,50–7,19 | 5,35 | 4,38 (2,87–10,41) | 0,82 | 3/10 |
+| Biobío | 5,50–8,79 | 7,14 | 4,79 (2,44–13,43) | 0,67 | 2/10 |
+| Araucanía | 7,70–14,41 | 11,05 | 5,25 (2,38–7,45) | 0,47 | 1/10 |
+| Los Lagos | 13,80–18,40 | 16,10 | 6,11 (3,07–10,20) | 0,38 | 0/10 |
+| Aysén | 17,50–32,23 | 24,86 | 7,57 (5,41–10,59) | 0,30 | 0/10 |
+| Magallanes | 18,16–28,53 | 23,34 | 13,83 (9,78–21,41) | 0,59 | 1/10 |
+| RM | 2,59–3,00 | 2,79 | 3,45 (2,19–6,73) | 1,23 | 0/10 |
+| Los Ríos | 14,10–14,22 | 14,16 | 5,99 (3,07–11,28) | 0,42 | 0/10 |
+
+La mediana simulada supera REDPE en O’Higgins y la RM, es relativamente
+próxima en Maule y Biobío, y queda bastante por debajo en Araucanía, Los
+Lagos, Aysén, Magallanes y Los Ríos. Entre cero y tres de los diez registros
+por región quedaron dentro del intervalo REDPE bajo–alto. No hay comparación
+directa para Tarapacá, Antofagasta, Atacama, Coquimbo, Valparaíso, Arica y
+Parinacota ni Ñuble porque la tabla REDPE incorporada no contiene esas filas.
+
+El escenario adicional `redpe_mid` impone el objetivo medio REDPE y permite
+observar el desbalance con la demanda 5R1C: el objetivo queda corto en parte
+de las muestras de O’Higgins, Maule, Biobío y la RM, mientras que en Aysén,
+Los Lagos y Los Ríos suele sobrar energía objetivo frente a la demanda
+simulada. Esto no valida ni invalida por sí solo la tabla: muestra que ambas
+fuentes representan unidades y poblaciones distintas.
+
 ## Archivos generados
 
 Los resultados quedan en
