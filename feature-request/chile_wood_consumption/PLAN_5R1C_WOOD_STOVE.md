@@ -1,6 +1,8 @@
 # Plan — Estado del arte y módulo 5R1C para estufa a leña
 
-**Estado:** Fases 0–5 ejecutadas; Fase 6 iniciada con eventos y almacenamiento térmico de baja dimensión; queda pendiente calibrar parámetros, evaluar retroalimentación térmica y preparar el PR.
+**Estado:** Fases 0–5 ejecutadas; Fase 6 implementada con eventos,
+almacenamiento y calibración numérica contra `REDPE_mid`; queda pendiente la
+calibración física, evaluar retroalimentación térmica y preparar el PR.
 **Rama:** `feature/chile-wood-stove-simulation`
 **Objetivo:** identificar enfoques publicados y diseñar una primera implementación de calefacción con estufa a leña compatible con `tsib-fcr`, sin duplicar energía ni alterar `elecLoad`.
 
@@ -238,12 +240,13 @@ escenarios REDPE por separado para no confundir demanda útil simulada con
 consumo regional observado.
 
 Se agregó además `examples/chile/analyze_wood_stove_regional_dispersion.py`,
-que ejecuta 10 registros `edificio_id` por región usando una muestra
-determinista y estratificada por comuna. La corrida 2024 completó 160
-simulaciones, sin errores, y dejó el resumen en
-`outputs/chile_wood_stove_regional_dispersion/`. Esta evidencia se considera
-exploratoria; aún falta definir la unidad de calibración REDPE y ampliar la
-muestra si se necesitan cuantiles regionales robustos.
+que ejecuta una muestra determinista y estratificada por comuna. La corrida
+2024 ampliada completó 500 registros sin errores, con un mínimo de 10 por
+región y cuotas proporcionales a las unidades que declaran leña. El resumen y
+la asignación regional quedan en
+`outputs/chile_wood_stove_regional_dispersion/`. La muestra mejora la
+estimación exploratoria de cuantiles del centro-sur, pero no reemplaza una
+muestra probabilística de viviendas individuales.
 
 ### Fase 6 — Segunda etapa: eventos y almacenamiento
 
@@ -277,8 +280,10 @@ consistencia contra el MVP, incluyendo una métrica de diferencia del perfil
 horario. La corrida de referencia sobre un registro por región y 144
 combinaciones queda en `outputs/chile_wood_stove_event_calibration/`; también
 transfiere los parámetros seleccionados al escenario `REDPE_mid` cuando existe.
-Al no haber datos físicos, estos parámetros no se consideran estimación del
-comportamiento real.
+El script admite `--calibration-target redpe_mid`, con fallback explícito a
+`MVP_coverage_mid` en regiones sin datos REDPE. La corrida de control queda en
+`outputs/chile_wood_stove_redpe_calibration/`. Al no haber datos físicos, estos
+parámetros no se consideran estimación del comportamiento real.
 
 ### Fase 7 — Entrega
 

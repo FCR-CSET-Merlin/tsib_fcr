@@ -116,6 +116,35 @@ región, usando ERA5 2024. También transfiere el mejor conjunto de parámetros 
 la energía no asignada. Los resultados se guardan en
 `outputs/chile_wood_stove_event_calibration/`.
 
+El mismo script admite ahora `--calibration-target redpe_mid`. En ese modo,
+cuando existe una fila REDPE para la región, el objetivo anual usado para
+seleccionar los parámetros es directamente la energía bruta `REDPE_mid`; en
+las regiones sin fila se usa explícitamente `MVP_coverage_mid`. Por ejemplo,
+para una cohorte regional exploratoria:
+
+```bash
+PYTHONPATH=. python examples/chile/calibrate_wood_stove_events.py \
+  --env-file /ruta/local/geonode.env \
+  --year 2024 \
+  --samples-per-region 10 \
+  --calibration-target redpe_mid \
+  --output-dir outputs/chile_wood_stove_redpe_calibration
+```
+
+Esta opción calibra la escala anual REDPE y la dinámica de eventos bajo la
+misma demanda 5R1C, pero sigue sin identificar físicamente el comportamiento
+de los ocupantes. La muestra de 500 registros del análisis de dispersión no se
+usa automáticamente para explorar las 144 combinaciones por registro, porque
+eso multiplica innecesariamente el costo; debe reservarse para evaluar los
+parámetros seleccionados o para una estrategia regional agregada.
+
+La corrida de control con un registro por región se guardó en
+`outputs/chile_wood_stove_redpe_calibration/`. En las nueve regiones REDPE,
+el objetivo usado por la calibración fue exactamente la energía `REDPE_mid`;
+en las siete regiones restantes quedó registrado el fallback
+`MVP_coverage_mid`. Esto confirma la ruta numérica de calibración, pero no
+constituye validación física.
+
 La corrida de referencia usó 16 registros, 144 candidatos por registro y
 2.304 evaluaciones válidas. El mejor conjunto reproduce el combustible anual
 del MVP en los 16 registros y no deja derrame ni combustible sin asignar para

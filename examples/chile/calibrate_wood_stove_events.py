@@ -33,13 +33,42 @@ from examples.chile.validate_wood_stove_geonode import (
 def _parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--year", type=int, default=DEFAULT_YEAR)
-    parser.add_argument("--samples-per-region", type=int, default=1)
+    sampling_group = parser.add_mutually_exclusive_group()
+    sampling_group.add_argument(
+        "--total-samples",
+        type=int,
+        default=None,
+        help="Total de registros con cuota proporcional a unidades a lena.",
+    )
+    sampling_group.add_argument(
+        "--samples-per-region",
+        type=int,
+        default=None,
+        help="Cantidad fija de registros por region (default: 1).",
+    )
     parser.add_argument("--seed", type=int, default=2024)
     parser.add_argument("--efficiency", type=float, default=DEFAULT_EFFICIENCY)
+    parser.add_argument(
+        "--calibration-target",
+        choices=("mvp", "redpe_mid"),
+        default="mvp",
+        help="Objetivo anual usado para seleccionar parametros (default: mvp).",
+    )
     parser.add_argument("--env-file", type=Path, default=None)
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
-    if args.samples_per_region <= 0:
+    if args.total_samples is None and args.samples_per_region is None:
+        args.samples_per_region = 1
+    sample_count = (
+        args.total_samples
+        if args.total_samples is not None
+        else args.samples_per_region
+    )
+    if sample_count <= 0:
+        parser.error("el numero de muestras debe ser mayor que cero.")
+    if args.total_samples is not None and args.total_samples < 160:
+        parser.error("--total-samples debe permitir al menos 10 registros por region.")
+    if args.samples_per_region is not None and args.samples_per_region <= 0:
         parser.error("--samples-per-region debe ser mayor que cero.")
     if not 0 < args.efficiency <= 1:
         parser.error("--efficiency debe estar en (0, 1].")
@@ -68,10 +97,31 @@ def _candidate_parameters():
     return candidates
 
 
-def _calibration_rows(building, weather, year, efficiency, candidates):
+def _calibration_rows(
+    building, weather, year, efficiency, candidates, calibration_target
+):
     model, archetype, persons, area_m2 = _build_model(building, weather)
     demand_kwh = float(model.detailedResults["Heating Load"].sum())
-    target_fuel = demand_kwh * 0.75 / efficiency
+
+    redpe_mid = np.nan
+    redpe_target_fuel = np.nan
+    redpe_dynamic = None
+    try:
+        redpe = tsib.get_chile_regional_wood_consumption(
+            int(building["codigo_region"]), "mid"
+        )
+        redpe_mid = redpe["consumption_m3st_per_consumer"]
+        redpe_target_fuel = redpe["energy_bruta_mwh_per_consumer"] * 1000.0
+    except ValueError:
+        pass
+
+    mvp_target_fuel = demand_kwh * 0.75 / efficiency
+    if calibration_target == "redpe_mid" and np.isfinite(redpe_target_fuel):
+        target_fuel = redpe_target_fuel
+        target_source = "REDPE_mid"
+    else:
+        target_fuel = mvp_target_fuel
+        target_source = "MVP_coverage_mid"
     calibration = tsib.calibrate_wood_stove_event_parameters(
         model.detailedResults["Heating Load"],
         fuel_energy_target_kwh=target_fuel,
@@ -87,31 +137,23 @@ def _calibration_rows(building, weather, year, efficiency, candidates):
         REGION_NAMES.get(int(building["codigo_region"]), "unknown"),
     )
     trials.insert(3, "heating_demand_kwh", demand_kwh)
-    trials.insert(4, "mvp_target_fuel_energy_kwh", target_fuel)
-    trials.insert(5, "mvp_assigned_useful_energy_kwh", calibration.reference_result.assigned_useful_energy_kwh)
-    trials.insert(6, "mvp_unmet_heating_energy_kwh", calibration.reference_result.unmet_heating_energy_kwh)
+    trials.insert(4, "calibration_target_source", target_source)
+    trials.insert(5, "calibration_target_fuel_energy_kwh", target_fuel)
+    trials.insert(6, "mvp_target_fuel_energy_kwh", mvp_target_fuel)
+    trials.insert(7, "mvp_assigned_useful_energy_kwh", calibration.reference_result.assigned_useful_energy_kwh)
+    trials.insert(8, "mvp_unmet_heating_energy_kwh", calibration.reference_result.unmet_heating_energy_kwh)
     trials["is_best"] = trials["trial"] == int(
         trials.loc[trials["score"].idxmin(), "trial"]
     )
     best_trial = trials.loc[trials["is_best"]].iloc[0]
 
-    redpe_mid = np.nan
-    redpe_target_fuel = np.nan
-    redpe_dynamic = None
-    try:
-        redpe = tsib.get_chile_regional_wood_consumption(
-            int(building["codigo_region"]), "mid"
-        )
-        redpe_mid = redpe["consumption_m3st_per_consumer"]
-        redpe_target_fuel = redpe["energy_bruta_mwh_per_consumer"] * 1000.0
+    if np.isfinite(redpe_target_fuel):
         redpe_dynamic = tsib.simulate_wood_stove_events(
             model.detailedResults["Heating Load"],
             fuel_energy_target_kwh=redpe_target_fuel,
             efficiency=efficiency,
             **calibration.best_parameters,
         )
-    except ValueError:
-        pass
 
     best = calibration.best_result
     summary = {
@@ -129,8 +171,15 @@ def _calibration_rows(building, weather, year, efficiency, candidates):
         "model_persons": persons,
         "model_area_m2": area_m2,
         "heating_demand_kwh": demand_kwh,
-        "mvp_target_fuel_energy_kwh": target_fuel,
-        "mvp_wood_volume_stere": calibration.reference_result.wood_volume_stere,
+        "calibration_target_source": target_source,
+        "calibration_target_fuel_energy_kwh": target_fuel,
+        "mvp_target_fuel_energy_kwh": mvp_target_fuel,
+        "calibration_target_wood_volume_stere": calibration.reference_result.wood_volume_stere,
+        "mvp_wood_volume_stere": (
+            calibration.reference_result.wood_volume_stere
+            if target_source == "MVP_coverage_mid"
+            else np.nan
+        ),
         "redpe_mid_m3st_per_consumer": redpe_mid,
         "redpe_mid_target_fuel_energy_kwh": redpe_target_fuel,
         "candidate_count": len(candidates),
@@ -192,22 +241,22 @@ def _write_report(output_dir, args, summaries, trial_count):
         "## Configuración",
         "",
         f"- Año ERA5: `{args.year}`.",
-        f"- Registros por región: `{args.samples_per_region}`.",
+        f"- Registros: `{'total=' + str(args.total_samples) if args.total_samples is not None else 'por región=' + str(args.samples_per_region)}`.",
         f"- Semilla de selección: `{args.seed}`.",
         f"- Candidatos por registro: `{trial_count}`.",
         f"- Eficiencia: `{args.efficiency:.2f}`.",
-        "- Objetivo MVP: 75% de cobertura útil con eficiencia 0,50.",
+        f"- Objetivo de calibración: `{args.calibration_target}`; las regiones sin fila REDPE_mid usan MVP coverage_mid.",
         "",
         "## Resultado por registro",
         "",
-        "| Región | Demanda MVP (kWh/a) | Score | Error perfil (kWh) | Eventos | MVP (m³ st) | Dinámico (m³ st) | Derrame (kWh) |",
+        "| Región | Demanda (kWh/a) | Score | Error perfil (kWh) | Eventos | Objetivo (m³ st) | Dinámico (m³ st) | Derrame (kWh) |",
         "|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in summary.itertuples(index=False):
         lines.append(
             f"| {row.region} | {row.heating_demand_kwh:.1f} | {row.best_score:.4f} | "
             f"{row.best_profile_error_kwh:.2f} | "
-            f"{row.dynamic_event_count} | {row.mvp_wood_volume_stere:.2f} | "
+            f"{row.dynamic_event_count} | {row.calibration_target_wood_volume_stere:.2f} | "
             f"{row.dynamic_wood_volume_stere:.2f} | "
             f"{row.dynamic_storage_spill_energy_kwh:.2f} |"
         )
@@ -218,7 +267,12 @@ def _write_report(output_dir, args, summaries, trial_count):
                 "",
                 "## Transferencia a REDPE_mid",
                 "",
-                "Los parámetros se calibraron contra el MVP y luego se aplicaron al objetivo REDPE.",
+                (
+                    "Los parámetros se calibraron contra REDPE_mid y se comparan "
+                    "con la transferencia REDPE."
+                    if args.calibration_target == "redpe_mid"
+                    else "Los parámetros se calibraron contra el MVP y luego se aplicaron al objetivo REDPE."
+                ),
                 "",
                 "| Región | REDPE (m³ st/a) | Dinámico (m³ st/a) | No satisfecho (kWh) | No asignado (kWh) |",
                 "|---|---:|---:|---:|---:|",
@@ -252,9 +306,19 @@ def main():
     _load_env_file(args.env_file)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     engine = _create_engine()
-    buildings = _load_sampled_buildings(
-        engine, args.samples_per_region, args.seed
-    )
+    if args.total_samples is not None:
+        buildings = _load_sampled_buildings(
+            engine,
+            args.total_samples,
+            args.seed,
+        )
+    else:
+        buildings = _load_sampled_buildings(
+            engine,
+            args.samples_per_region,
+            args.seed,
+            samples_per_region=args.samples_per_region,
+        )
     candidates = _candidate_parameters()
     weather_cache = {}
     all_trials = []
@@ -272,6 +336,7 @@ def main():
             args.year,
             args.efficiency,
             candidates,
+            args.calibration_target,
         )
         all_trials.append(trials)
         summaries.append(summary)

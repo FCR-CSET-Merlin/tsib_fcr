@@ -209,9 +209,14 @@ asignado, la demanda no satisfecha y la energía no asignada.
 La primera corrida de dispersión regional está documentada en
 [`REGIONAL_DISPERSION_WOOD_STOVE.md`](REGIONAL_DISPERSION_WOOD_STOVE.md). El
 script [`examples/chile/analyze_wood_stove_regional_dispersion.py`](../../examples/chile/analyze_wood_stove_regional_dispersion.py)
-selecciona 10 registros `edificio_id` por región, usa ERA5 2024 y genera el
-resumen en `outputs/chile_wood_stove_regional_dispersion/`. La muestra es
-exploratoria: un `edificio_id` puede representar varias unidades habitacionales.
+selecciona por defecto 500 registros `edificio_id` con una cuota regional
+proporcional al número de unidades habitacionales que declaran calefacción a
+leña, usa ERA5 2024 y genera el resumen en
+`outputs/chile_wood_stove_regional_dispersion/`. El informe también conserva la
+proporción de unidades a leña respecto del stock regional elegible. La muestra
+sigue siendo exploratoria: un `edificio_id` puede representar varias unidades
+habitacionales y la base no equivale automáticamente a una muestra aleatoria
+de viviendas individuales.
 
 Las dependencias opcionales para ese script están en
 `requirements-validation.txt`:
@@ -219,3 +224,9 @@ Las dependencias opcionales para ese script están en
 ```bash
 python -m pip install -r requirements-validation.txt
 ```
+
+Para seleccionar los parámetros de eventos con el objetivo anual REDPE se
+puede usar `examples/chile/calibrate_wood_stove_events.py --calibration-target
+redpe_mid`. La opción `--total-samples` usa la misma cuota proporcional del
+análisis regional; por defecto la calibración mantiene una muestra pequeña por
+región para no multiplicar innecesariamente la grilla de 144 candidatos.

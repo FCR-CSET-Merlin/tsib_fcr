@@ -1,6 +1,8 @@
 # Validación inicial 5R1C + estufa a leña con GeoNode
 
-**Estado:** validación de pipeline y primera dispersión regional completadas; calibración de cohorte REDPE pendiente.
+**Estado:** validación de pipeline, dispersión regional de 500 registros y
+calibración numérica de control contra `REDPE_mid` completadas; calibración
+física pendiente.
 
 ## 1. Objetivo
 
@@ -120,20 +122,21 @@ La comparación regional completa queda pendiente. La tabla ya está integrada,
 pero se debe ejecutar una cohorte de viviendas consumidoras y comparar sus
 distribuciones con el rango REDPE; no basta con un único edificio.
 
-La primera corrida exploratoria de dispersión ya fue ejecutada con 10 registros
-`edificio_id` por región. Sus supuestos, resultados y limitaciones están en
+La corrida ampliada de dispersión fue ejecutada con 500 registros
+`edificio_id`, mínimo 10 por región y cuotas proporcionales a las unidades con
+calefacción a leña. Sus supuestos, resultados y limitaciones están en
 [`REGIONAL_DISPERSION_WOOD_STOVE.md`](REGIONAL_DISPERSION_WOOD_STOVE.md), con
 los CSV reproducibles en
 `outputs/chile_wood_stove_regional_dispersion/`. Esta corrida confirma que hay
 registros válidos en las 16 regiones y permite dimensionar la variabilidad
-antes de definir una cohorte de calibración.
+antes de ampliar la calibración numérica regional.
 
 ## 6. Siguiente paso de validación
 
-1. Ejecutar una cohorte estratificada por región, zona térmica, arquetipo y
-   tipo de combustible, no sólo una vivienda.
+1. Ejecutar la calibración `redpe_mid` sobre una cohorte regional ampliada,
+   agregando región, zona térmica y arquetipo en el objetivo.
 2. Comparar consumo de leña en m³ estéreo por vivienda consumidora, calor útil
-   asignado y demanda no satisfecha.
+   asignado y demanda no satisfecha usando factores de expansión.
 3. Repetir la sensibilidad para eficiencia, PCI y paso temporal.
-4. Sólo después fijar la especificación de eventos de encendido y
-   almacenamiento térmico de la Fase 6.
+4. Incorporar datos de temperatura interior, encendido o consumo medido si se
+   busca reemplazar la calibración numérica por calibración física.

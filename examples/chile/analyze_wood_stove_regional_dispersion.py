@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """Estimate regional dispersion of Chilean wood-stove simulations.
 
-The script selects a deterministic sample of wood-heating building records
-from ``merlin_rcp.edificios`` (ten per region by default), joins each record
-to its communal ERA5 series, and runs the direct 5R1C model from tsib_fcr.
+The script selects a deterministic, regionally proportional sample of
+wood-heating building records from ``merlin_rcp.edificios`` (500 records by
+default), joins each record to its communal ERA5 series, and runs the direct
+5R1C model from tsib_fcr.
 
 The comparable scenario across all regions is ``coverage_mid``: 75% useful
 heating coverage with the configured stove efficiency.  For regions covered
@@ -79,11 +80,30 @@ ERROR_COLUMNS = [
 def _parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--year", type=int, default=DEFAULT_YEAR)
-    parser.add_argument(
+    sampling_group = parser.add_mutually_exclusive_group()
+    sampling_group.add_argument(
+        "--total-samples",
+        type=int,
+        default=500,
+        help=(
+            "Total de registros seleccionados proporcionalmente a las unidades "
+            "con calefaccion a lena (default: 500)."
+        ),
+    )
+    sampling_group.add_argument(
         "--samples-per-region",
         type=int,
+        default=None,
+        help=(
+            "Compatibilidad: fija la misma cantidad de registros por region "
+            "y desactiva la asignacion proporcional."
+        ),
+    )
+    parser.add_argument(
+        "--minimum-samples-per-region",
+        type=int,
         default=10,
-        help="Cantidad de edificios seleccionados por region (default: 10).",
+        help="Piso regional cuando se usa --total-samples (default: 10).",
     )
     parser.add_argument(
         "--seed",
@@ -105,18 +125,214 @@ def _parse_args():
         help="Directorio donde se guardan resultados, resumen y errores.",
     )
     args = parser.parse_args()
-    if args.samples_per_region <= 0:
-        parser.error("--samples-per-region debe ser mayor que cero.")
+    sample_count = (
+        args.samples_per_region
+        if args.samples_per_region is not None
+        else args.total_samples
+    )
+    if sample_count <= 0:
+        parser.error("el numero de muestras debe ser mayor que cero.")
+    if args.minimum_samples_per_region <= 0:
+        parser.error("--minimum-samples-per-region debe ser mayor que cero.")
     if not 0 < args.efficiency <= 1:
         parser.error("--efficiency debe estar en (0, 1].")
     return args
 
 
-def _load_sampled_buildings(engine, samples_per_region, seed):
-    """Select a reproducible, commune-diverse sample from the wood cohort."""
+def _allocate_sample_counts(
+    population, total_samples, *, minimum_samples_per_region=10
+):
+    """Allocate a total sample proportionally to regional wood units.
+
+    ``wood_share_regional`` describes the prevalence of wood heating relative
+    to the eligible regional stock.  The allocation itself uses the absolute
+    number of wood-heated units, because the simulation estimates the wood
+    consumer population and not only the prevalence of the fuel.
+    """
+    required = {
+        "codigo_region",
+        "total_inmuebles_regional",
+        "wood_inmuebles_regional",
+        "wood_records_regional",
+    }
+    missing = required.difference(population.columns)
+    if missing:
+        raise ValueError(
+            "population is missing columns: " + ", ".join(sorted(missing))
+        )
+    if int(total_samples) <= 0:
+        raise ValueError("total_samples must be greater than zero.")
+    if int(minimum_samples_per_region) <= 0:
+        raise ValueError("minimum_samples_per_region must be greater than zero.")
+
+    allocation = population.copy()
+    numeric_columns = [
+        "total_inmuebles_regional",
+        "wood_inmuebles_regional",
+        "wood_records_regional",
+    ]
+    for column in numeric_columns:
+        allocation[column] = pd.to_numeric(allocation[column], errors="coerce").fillna(0.0)
+    allocation = allocation[
+        (allocation["wood_inmuebles_regional"] > 0)
+        & (allocation["wood_records_regional"] > 0)
+    ].copy()
+    if allocation.empty:
+        raise RuntimeError("No hay regiones elegibles con inmuebles a lena.")
+
+    requested = int(total_samples)
+    available_records = int(allocation["wood_records_regional"].sum())
+    if requested > available_records:
+        raise ValueError(
+            f"Se solicitaron {requested} muestras, pero solo hay "
+            f"{available_records} registros de leña elegibles."
+        )
+    minimum = int(minimum_samples_per_region)
+    minimum_required = minimum * len(allocation)
+    if requested < minimum_required:
+        raise ValueError(
+            f"Se solicitaron {requested} muestras, pero se requieren al menos "
+            f"{minimum_required} para mantener {minimum} por region."
+        )
+
+    allocation = allocation.sort_values("codigo_region").reset_index(drop=True)
+    wood_units = allocation["wood_inmuebles_regional"].to_numpy(dtype=float)
+    weights = wood_units / wood_units.sum()
+    capacities = allocation["wood_records_regional"].to_numpy(dtype=int)
+    minimum = int(minimum_samples_per_region)
+    if (capacities < minimum).any():
+        constrained = allocation.loc[
+            allocation["wood_records_regional"] < minimum, "codigo_region"
+        ].astype(int).tolist()
+        raise ValueError(
+            f"Las regiones {constrained} no tienen {minimum} registros de lena "
+            "elegibles; reduzca el minimo regional o revise el filtro."
+        )
+    quotas = np.minimum(
+        np.full(len(allocation), minimum, dtype=int),
+        capacities,
+    )
+    extra_capacity = capacities - quotas
+    remaining = requested - int(quotas.sum())
+    extra_target = remaining * weights
+    extra = np.minimum(np.floor(extra_target).astype(int), extra_capacity)
+    quotas += extra
+
+    # Largest-remainder allocation after guaranteeing one sample per region
+    # and respecting the number of available eligible records.
+    while int(quotas.sum()) < requested:
+        deficits = extra_target - extra
+        deficits[quotas >= capacities] = -np.inf
+        selected = int(np.argmax(deficits))
+        if not np.isfinite(deficits[selected]):
+            # This can only happen when rounding/capacity constraints leave a
+            # remainder.  Select the region with most remaining capacity and
+            # largest population to keep the result deterministic.
+            candidates = np.flatnonzero(quotas < capacities)
+            if len(candidates) == 0:
+                raise RuntimeError("No quedan registros para completar la cuota.")
+            selected = int(
+                candidates[
+                    np.argmax(
+                        wood_units[candidates]
+                        / np.maximum(capacities[candidates] - quotas[candidates], 1)
+                    )
+                ]
+            )
+        quotas[selected] += 1
+        extra[selected] += 1
+
+    allocation["wood_share_regional"] = np.divide(
+        allocation["wood_inmuebles_regional"],
+        allocation["total_inmuebles_regional"],
+        out=np.zeros(len(allocation), dtype=float),
+        where=allocation["total_inmuebles_regional"].to_numpy(dtype=float) > 0,
+    )
+    allocation["sampling_weight_wood_inmuebles"] = weights
+    allocation["requested_samples"] = quotas
+    return allocation
+
+
+def _load_regional_population(engine):
+    """Return eligible regional dwelling counts and wood-heating prevalence."""
+    query = text(
+        """
+        SELECT
+            c.cut_region AS codigo_region,
+            SUM(GREATEST(COALESCE(e.n_inmuebles, 1), 1)) AS total_inmuebles_regional,
+            SUM(
+                CASE
+                    WHEN lower(trim(e.tipo_comb_calef)) = 'lena'
+                    THEN GREATEST(COALESCE(e.n_inmuebles, 1), 1)
+                    ELSE 0
+                END
+            ) AS wood_inmuebles_regional,
+            COUNT(*) AS total_records_regional,
+            COUNT(*) FILTER (
+                WHERE lower(trim(e.tipo_comb_calef)) = 'lena'
+            ) AS wood_records_regional
+        FROM merlin_rcp.edificios AS e
+        JOIN merlin_rcp.comunas_sii_cut AS c
+          ON c.codigo_sii = e.codigo_comuna
+        WHERE c.cut_region BETWEEN 1 AND 16
+          AND e.episcope_archetype ~ :archetype_re
+          AND e.area_promedio_inmueble IS NOT NULL
+          AND e.area_promedio_inmueble > 0
+          AND e.longitud IS NOT NULL
+          AND e.latitud IS NOT NULL
+        GROUP BY c.cut_region
+        ORDER BY c.cut_region
+        """
+    )
+    with engine.connect() as connection:
+        population = pd.read_sql_query(
+            query,
+            connection,
+            params={"archetype_re": VALID_ARCHETYPE_RE},
+        )
+    if population.empty:
+        raise RuntimeError("No se encontro stock regional elegible.")
+    return population
+
+
+def _load_sampled_buildings(
+    engine,
+    total_samples,
+    seed,
+    *,
+    samples_per_region=None,
+    minimum_samples_per_region=10,
+):
+    """Select a reproducible sample with a regional wood-population quota."""
+    population = _load_regional_population(engine)
+    if samples_per_region is not None:
+        allocation = population[
+            population["wood_records_regional"] > 0
+        ].copy()
+        allocation["requested_samples"] = int(samples_per_region)
+        allocation["wood_share_regional"] = np.divide(
+            allocation["wood_inmuebles_regional"],
+            allocation["total_inmuebles_regional"],
+            out=np.zeros(len(allocation), dtype=float),
+            where=allocation["total_inmuebles_regional"].to_numpy(dtype=float) > 0,
+        )
+        allocation["sampling_weight_wood_inmuebles"] = np.nan
+    else:
+        allocation = _allocate_sample_counts(
+            population,
+            total_samples,
+            minimum_samples_per_region=minimum_samples_per_region,
+        )
+
+    quota_values = ", ".join(
+        f"({int(row.codigo_region)}, {int(row.requested_samples)})"
+        for row in allocation.itertuples(index=False)
+    )
     query = text(
         f"""
-        WITH candidates AS (
+        WITH regional_quota(codigo_region, sample_quota) AS (
+            VALUES {quota_values}
+        ), candidates AS (
             SELECT
                 e.edificio_id,
                 e.codigo_comuna,
@@ -160,9 +376,11 @@ def _load_sampled_buildings(engine, samples_per_region, seed):
                 ) AS regional_sample_rank
             FROM candidates
         )
-        SELECT *
+        SELECT ranked.*, quota.sample_quota
         FROM ranked
-        WHERE regional_sample_rank <= :samples_per_region
+        JOIN regional_quota AS quota
+          ON quota.codigo_region = ranked.codigo_region
+        WHERE regional_sample_rank <= quota.sample_quota
         ORDER BY codigo_region, regional_sample_rank
         """
     )
@@ -172,12 +390,32 @@ def _load_sampled_buildings(engine, samples_per_region, seed):
             connection,
             params={
                 "seed": int(seed),
-                "samples_per_region": int(samples_per_region),
                 "archetype_re": VALID_ARCHETYPE_RE,
             },
         )
     if buildings.empty:
         raise RuntimeError("No se encontraron inmuebles con calefaccion a lena.")
+    buildings = buildings.merge(
+        allocation[
+            [
+                "codigo_region",
+                "total_inmuebles_regional",
+                "wood_inmuebles_regional",
+                "total_records_regional",
+                "wood_records_regional",
+                "wood_share_regional",
+                "sampling_weight_wood_inmuebles",
+                "requested_samples",
+            ]
+        ],
+        on="codigo_region",
+        how="left",
+        validate="many_to_one",
+    )
+    buildings["sample_expansion_weight"] = (
+        buildings["wood_inmuebles_regional"]
+        / buildings["requested_samples"]
+    )
     return buildings
 
 
@@ -205,6 +443,16 @@ def _scenario_row(building, model, year, efficiency, scenario, target_fuel, **ex
             if pd.notna(building["n_inmuebles"])
             else 1
         ),
+        "total_inmuebles_regional": int(building["total_inmuebles_regional"]),
+        "wood_inmuebles_regional": int(building["wood_inmuebles_regional"]),
+        "wood_share_regional": float(building["wood_share_regional"]),
+        "sampling_weight_wood_inmuebles": float(
+            building["sampling_weight_wood_inmuebles"]
+        )
+        if pd.notna(building["sampling_weight_wood_inmuebles"])
+        else np.nan,
+        "sample_expansion_weight": float(building["sample_expansion_weight"]),
+        "requested_samples_region": int(building["requested_samples"]),
         "n_pers_edificio": (
             float(building["n_pers_edificio"])
             if pd.notna(building["n_pers_edificio"])
@@ -294,6 +542,8 @@ def _summary_table(results):
         "heating_demand_kwh",
         "heating_demand_kwh_m2",
         "target_fuel_energy_kwh",
+        "assigned_fuel_energy_kwh",
+        "unallocated_fuel_energy_kwh",
         "wood_volume_stere",
         "unmet_heating_energy_kwh",
     ]
@@ -306,15 +556,33 @@ def _summary_table(results):
             "region": region,
             "scenario": scenario,
             "n_simulations": int(len(group)),
+            "n_inmuebles_sampled": int(group["n_inmuebles"].sum()),
+            "total_inmuebles_regional": int(group["total_inmuebles_regional"].iloc[0]),
+            "wood_inmuebles_regional": int(group["wood_inmuebles_regional"].iloc[0]),
+            "wood_share_regional": float(group["wood_share_regional"].iloc[0]),
+            "sampling_weight_wood_inmuebles": float(
+                group["sampling_weight_wood_inmuebles"].iloc[0]
+            ),
+            "sample_expansion_weight": float(
+                group["sample_expansion_weight"].iloc[0]
+            ),
         }
         for column in value_columns:
             series = pd.to_numeric(group[column], errors="coerce")
+            weights = (
+                pd.to_numeric(group["n_inmuebles"], errors="coerce")
+                .fillna(1.0)
+                .clip(lower=1.0)
+            )
             row[f"{column}_min"] = float(series.min())
             row[f"{column}_p10"] = float(series.quantile(0.10))
             row[f"{column}_median"] = float(series.median())
             row[f"{column}_p90"] = float(series.quantile(0.90))
             row[f"{column}_max"] = float(series.max())
             row[f"{column}_std"] = float(series.std(ddof=1)) if len(series) > 1 else 0.0
+            row[f"{column}_weighted_mean"] = float(
+                np.average(series.to_numpy(dtype=float), weights=weights.to_numpy(dtype=float))
+            )
         median_demand = row["heating_demand_kwh_median"]
         row["heating_demand_cv"] = (
             row["heating_demand_kwh_std"] / median_demand
@@ -326,26 +594,61 @@ def _summary_table(results):
 
 
 def _write_report(output_dir, args, buildings, results, summary, errors):
-    counts = buildings.groupby("codigo_region").size().sort_index()
+    counts = (
+        buildings.groupby("codigo_region", dropna=False)
+        .size()
+        .reset_index(name="n_selected")
+        .sort_values("codigo_region")
+    )
+    sampling_description = (
+        "Muestreo determinista y estratificado por comuna con cuota fija por región."
+        if args.samples_per_region is not None
+        else (
+            "Muestreo determinista y estratificado por comuna; cuota proporcional "
+            f"a unidades con calefaccion a lena, con piso de "
+            f"`{args.minimum_samples_per_region}` por region."
+        )
+    )
     lines = [
         "# Dispersion regional de simulaciones de estufa a lena",
         "",
         "## Configuracion",
         "",
         f"- Ano meteorologico: `{args.year}`.",
-        f"- Muestra: `{args.samples_per_region}` registros `edificio_id` por region, semilla `{args.seed}`.",
+        f"- Muestra solicitada: `{args.total_samples if args.samples_per_region is None else args.samples_per_region}` registros `edificio_id`, semilla `{args.seed}`.",
         f"- Eficiencia de estufa: `{args.efficiency:.2f}`.",
-        "- Muestreo: determinista y estratificado por comuna; un `edificio_id` puede representar varias unidades habitacionales.",
+        f"- {sampling_description} La prevalencia se reporta como unidades a lena sobre el stock regional elegible.",
+        "- Un `edificio_id` puede representar varias unidades habitacionales; por eso se conserva `n_inmuebles` y el factor de expansion regional.",
         "- Escenario comparable: `coverage_mid`, 75% de cobertura util de calefaccion.",
         "- Escenario complementario: `redpe_mid`, solo para regiones con fila REDPE 2020.",
         "",
         "## Cobertura de la muestra",
         "",
-        "| Codigo region | Inmuebles seleccionados |",
-        "|---:|---:|",
+        "| Codigo | Region | Stock regional | Inmuebles a lena | Participacion lena | Muestra |",
+        "|---:|---|---:|---:|---:|---:|",
     ]
-    for region_code, count in counts.items():
-        lines.append(f"| {int(region_code)} | {int(count)} |")
+    allocation_view = (
+        buildings[
+            [
+                "codigo_region",
+                "total_inmuebles_regional",
+                "wood_inmuebles_regional",
+                "wood_share_regional",
+                "requested_samples",
+            ]
+        ]
+        .drop_duplicates("codigo_region")
+        .merge(counts, on="codigo_region", how="left")
+        .sort_values("codigo_region")
+    )
+    allocation_view["region"] = allocation_view["codigo_region"].map(REGION_NAMES)
+    for row in allocation_view.itertuples(index=False):
+        lines.append(
+            f"| {int(row.codigo_region)} | {row.region} | "
+            f"{int(row.total_inmuebles_regional)} | "
+            f"{int(row.wood_inmuebles_regional)} | "
+            f"{row.wood_share_regional:.3%} | {int(row.n_selected)} |"
+        )
 
     coverage_summary = summary[summary["scenario"] == "coverage_mid"]
     lines.extend(
@@ -398,9 +701,41 @@ def main():
     args.output_dir.mkdir(parents=True, exist_ok=True)
     engine = _create_engine()
     buildings = _load_sampled_buildings(
-        engine, args.samples_per_region, args.seed
+        engine,
+        args.total_samples,
+        args.seed,
+        samples_per_region=args.samples_per_region,
+        minimum_samples_per_region=args.minimum_samples_per_region,
     )
     buildings.to_csv(args.output_dir / "selected_buildings.csv", index=False)
+    allocation = (
+        buildings[
+            [
+                "codigo_region",
+                "total_inmuebles_regional",
+                "wood_inmuebles_regional",
+                "total_records_regional",
+                "wood_records_regional",
+                "wood_share_regional",
+                "sampling_weight_wood_inmuebles",
+                "requested_samples",
+            ]
+        ]
+        .drop_duplicates("codigo_region")
+        .copy()
+    )
+    selected_counts = (
+        buildings.groupby("codigo_region")
+        .size()
+        .rename("selected_records")
+        .reset_index()
+    )
+    allocation = allocation.merge(
+        selected_counts, on="codigo_region", how="left", validate="one_to_one"
+    )
+    allocation.to_csv(
+        args.output_dir / "regional_sampling_allocation.csv", index=False
+    )
 
     weather_cache = {}
     result_rows = []
