@@ -168,9 +168,10 @@ README de la salida.
 
 Como sensibilidad adicional, se evaluaron setpoints invernales constantes de
 22 °C y 24 °C en Magallanes, Los Ríos, Los Lagos y Araucanía, manteniendo
-fijos los parámetros de eventos calibrados. La demanda aumentó y la brecha
-contra `REDPE_mid` se redujo en las cuatro regiones, pero también aumentó la
-demanda no satisfecha. El análisis está documentado en
+fijos los parámetros de eventos calibrados. El setpoint de enfriamiento se
+mantiene 2 °C por encima del de calefacción durante esos meses. La demanda
+aumentó y la brecha contra `REDPE_mid` se redujo en las cuatro regiones, pero
+también aumentó la demanda no satisfecha. El análisis está documentado en
 `SETPOINT_SENSITIVITY_SOUTH.md` y sus CSV quedan en
 `outputs/chile_wood_stove_setpoint_sensitivity_south/`.
 

@@ -11,16 +11,18 @@ El escenario `perfil_actual` conserva el perfil mensual chileno asociado al
 arquetipo de cada inmueble. Los escenarios `invierno_22C` e `invierno_24C`
 reemplazan únicamente el setpoint de junio, julio y agosto. Los parámetros de
 eventos calibrados por región se mantienen fijos para aislar el efecto del
-setpoint sobre la demanda 5R1C.
+setpoint sobre la demanda 5R1C. Durante esos meses, el setpoint de enfriamiento
+se mantiene 2 °C por encima del setpoint de calefacción para conservar una
+banda de confort válida.
 
 ## Resultados
 
 | Región | Demanda actual (kWh) | Demanda a 22 °C | Demanda a 24 °C | Error REDPE actual | Error a 22 °C | Error a 24 °C |
 |---|---:|---:|---:|---:|---:|---:|
-| Magallanes | 19.046,8 | 21.234,3 | 22.115,8 | -23,6% | -17,7% | -15,7% |
-| Los Ríos | 9.161,6 | 10.406,2 | 11.095,2 | -26,0% | -20,2% | -17,2% |
-| Los Lagos | 7.145,6 | 8.286,4 | 8.894,5 | -18,2% | -12,9% | -10,7% |
-| Araucanía | 7.216,4 | 8.384,9 | 9.022,7 | -21,0% | -14,8% | -12,0% |
+| Magallanes | 19.046,8 | 21.234,0 | 22.115,4 | -23,6% | -17,7% | -15,7% |
+| Los Ríos | 9.161,6 | 10.405,6 | 11.094,2 | -26,0% | -20,2% | -17,2% |
+| Los Lagos | 7.145,6 | 8.285,5 | 8.893,4 | -18,2% | -12,9% | -10,7% |
+| Araucanía | 7.216,4 | 8.384,4 | 9.022,0 | -21,0% | -14,8% | -12,0% |
 
 El aumento del setpoint mejora el ajuste en las cuatro regiones. A 24 °C, la
 leña simulada alcanza `19,68 m³ st` en Magallanes, `11,72` en Los Ríos,

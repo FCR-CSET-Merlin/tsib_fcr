@@ -225,7 +225,9 @@ def _write_report(output_dir, args, summary):
         "La sensibilidad reutiliza la cohorte regional de calibración y mantiene",
         "fijos los parámetros de eventos seleccionados por región. Sólo se",
         "reemplaza el setpoint de calefacción de junio, julio y agosto; el resto",
-        "del año conserva el perfil mensual chileno por zona térmica.",
+        "del año conserva el perfil mensual chileno por zona térmica. Durante",
+        "la sensibilidad, el setpoint de enfriamiento invernal se mantiene 2 °C",
+        "por encima del setpoint de calefacción.",
         "",
         "- Regiones: "
         + ", ".join(

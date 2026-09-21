@@ -287,7 +287,7 @@ def _build_model(building, weather, winter_heating_setpoint=None):
         winter = heating_setpoint.index.month.isin((6, 7, 8))
         heating_setpoint.loc[winter] = float(winter_heating_setpoint)
         cooling_setpoint.loc[winter] = np.maximum(
-            cooling_setpoint.loc[winter], float(winter_heating_setpoint) + 1.0
+            cooling_setpoint.loc[winter], float(winter_heating_setpoint) + 2.0
         )
         model.sim_demand_direct(
             heating_setpoint=heating_setpoint,
