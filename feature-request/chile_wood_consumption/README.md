@@ -165,3 +165,23 @@ El ejemplo reproducible
 usa una vivienda chilena y meteorología sintética determinista. La selección
 de una vivienda y un año meteorológico observacional queda reservada para la
 Fase 5 de validación.
+
+Para la validación con GeoNode se utiliza el script
+[`examples/chile/validate_wood_stove_geonode.py`](../../examples/chile/validate_wood_stove_geonode.py).
+Lee `merlin_rcp.edificios`, une el código SII con el CUT de la comuna y carga
+el año local completo desde `meteorology_commune.era5_hourly_comunal`. Las
+credenciales se entregan mediante `GEONODE_HOST`, `GEONODE_PORT`,
+`GEONODE_DATABASE`, `GEONODE_USER` y `GEONODE_PASSWORD`, o mediante un archivo
+local pasado con `--env-file`; nunca deben escribirse en el repositorio.
+
+El script ejecuta tres sensibilidades de cobertura útil de calefacción (`low`,
+`mid`, `high`) y no las presenta como calibración REDPE. Para una comparación
+REDPE, el objetivo de combustible debe incorporarse como un insumo regional
+trazable y reportarse por separado de esta sensibilidad.
+
+Las dependencias opcionales para ese script están en
+`requirements-validation.txt`:
+
+```bash
+python -m pip install -r requirements-validation.txt
+```

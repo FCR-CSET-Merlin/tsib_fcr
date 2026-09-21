@@ -1,0 +1,4 @@
+# Optional dependencies for examples/chile/validate_wood_stove_geonode.py
+-r requirements.txt
+SQLAlchemy>=1.4
+psycopg2-binary>=2.9

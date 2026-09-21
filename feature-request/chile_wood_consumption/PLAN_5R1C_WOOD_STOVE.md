@@ -1,6 +1,6 @@
 # Plan — Estado del arte y módulo 5R1C para estufa a leña
 
-**Estado:** Fases 0–4 ejecutadas; quedan pendientes la validación con datos, la segunda etapa dinámica de eventos/almacenamiento y el PR.
+**Estado:** Fases 0–4 ejecutadas; Fase 5 iniciada con conexión GeoNode/ERA5 y un validador reproducible; quedan pendientes la comparación REDPE, la segunda etapa dinámica de eventos/almacenamiento y el PR.
 **Rama:** `feature/chile-wood-stove-simulation`
 **Objetivo:** identificar enfoques publicados y diseñar una primera implementación de calefacción con estufa a leña compatible con `tsib-fcr`, sin duplicar energía ni alterar `elecLoad`.
 
@@ -221,6 +221,19 @@ La integración inicial recomendada es posterior al cálculo 5R1C: recibe una se
 - Revisión de energía no asignada y demanda no satisfecha.
 
 **Salida:** informe corto de validación y límites.
+
+**Avance:** disponible
+`examples/chile/validate_wood_stove_geonode.py`, que usa una vivienda
+marcada con calefacción a leña, su `episcope_archetype`, el CUT asociado y un
+año local completo de `meteorology_commune.era5_hourly_comunal`. La primera
+ejecución separa sensibilidades de cobertura útil de una calibración REDPE;
+esta última requiere incorporar la tabla regional de consumo por vivienda
+consumidora como entrada versionada.
+
+El resultado de la primera ejecución está documentado en
+`VALIDATION_5R1C_WOOD_STOVE.md`. La conexión y el año ERA5 ya fueron
+verificados; la comparación REDPE debe mantenerse como un paso separado para
+no convertir sensibilidades de cobertura útil en observaciones de consumo.
 
 ### Fase 6 — Segunda etapa: eventos y almacenamiento
 
