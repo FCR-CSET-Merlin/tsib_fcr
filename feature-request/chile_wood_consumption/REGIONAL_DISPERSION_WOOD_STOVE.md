@@ -194,10 +194,79 @@ registros, por lo que aparece combustible no asignado. Esto justifica calibrar
 la escala anual contra REDPE, pero manteniendo una penalización explícita por
 energía no asignada y demanda no satisfecha.
 
+## Efecto del ajuste de severidad climática: HDD12
+
+Para representar que la calidad constructiva y la infiltración efectiva pueden
+ser peores en climas más severos, se repitió la corrida proporcional de 500
+registros con un ajuste regional basado en grados-día de calefacción (HDD). Se
+usó una temperatura base de 12 °C, calculando la temperatura media diaria de
+ERA5 2024 por comuna y ponderando el resultado por el stock regional elegible
+que declara leña. Los HDD se calcularon sobre todo el stock elegible, no sólo
+sobre los 500 registros seleccionados.
+
+El ajuste se aplicó únicamente a Araucanía, Los Ríos, Los Lagos, Aysén y
+Magallanes, usando Araucanía como referencia. Para evitar contar dos veces el
+efecto de la temperatura exterior que ya utiliza 5R1C, se emplearon exponentes
+amortiguados:
+
+```text
+r = HDD_region / HDD_Araucanía
+M_muros = 1,10 × r^0,20
+M_ventanas = 1,08 × r^0,20
+M_infiltración = 1,20 × r^0,35
+```
+
+La corrida se ejecutó con el mismo año meteorológico, semilla, eficiencia y
+muestra de 500 registros. Se completaron 500/500 simulaciones, se generaron
+878 evaluaciones incluyendo `coverage_mid` y `redpe_mid`, y no hubo errores.
+
+| Región | HDD12 | HDD/ref. | U muros | U ventanas | Infiltración |
+|---|---:|---:|---:|---:|---:|
+| Araucanía | 1.015,3 | 1,000 | 1,100 | 1,080 | 1,200 |
+| Los Ríos | 1.106,6 | 1,090 | 1,119 | 1,099 | 1,237 |
+| Los Lagos | 1.303,3 | 1,284 | 1,156 | 1,135 | 1,310 |
+| Aysén | 3.079,6 | 3,033 | 1,373 | 1,348 | 1,769 |
+| Magallanes | 3.212,1 | 3,164 | 1,385 | 1,360 | 1,796 |
+
+### Comparación ponderada contra REDPE_mid
+
+La siguiente tabla compara el volumen simulado ponderado por `n_inmuebles`
+con el consumo medio REDPE de viviendas consumidoras de leña. El ajuste mejora
+el resultado en las cinco regiones, pero no debe interpretarse como una
+calibración física: sigue siendo un proxy de pérdidas omitidas por viento,
+lluvia, puentes térmicos y calidad constructiva.
+
+| Región | REDPE_mid (m³ st/a) | Simulado HDD12 (m³ st/a) | Ratio | Error relativo | Demanda ponderada (kWh/a) | No asignado (kWh/a) |
+|---|---:|---:|---:|---:|---:|---:|
+| O’Higgins | 3,770 | 3,378 | 0,896 | -10,4% | 5.800,6 | 735,2 |
+| Maule | 5,345 | 4,358 | 0,815 | -18,5% | 7.595,4 | 1.844,6 |
+| Biobío | 7,145 | 5,464 | 0,765 | -23,5% | 6.445,9 | 3.136,0 |
+| Araucanía | 11,055 | 7,669 | 0,694 | -30,6% | 8.107,4 | 6.324,2 |
+| Los Lagos | 16,100 | 9,166 | 0,569 | -43,1% | 8.709,7 | 12.934,2 |
+| Aysén | 24,865 | 14,181 | 0,570 | -43,0% | 13.441,8 | 19.938,6 |
+| Magallanes | 23,345 | 21,876 | 0,937 | -6,3% | 27.525,6 | 2.745,0 |
+| RM | 2,795 | 2,725 | 0,975 | -2,5% | 8.885,2 | 137,6 |
+| Los Ríos | 14,160 | 9,150 | 0,646 | -35,4% | 10.462,8 | 9.350,5 |
+
+Respecto de la corrida sin severidad, el ratio simulado/REDPE_mid aumentó en
+6,5 puntos porcentuales en Araucanía, 6,1 en Los Ríos, 9,4 en Los Lagos, 15,9
+en Aysén y 17,3 en Magallanes. El cambio más favorable ocurre en Magallanes,
+donde el modelo queda cercano a REDPE_mid. En Aysén, Los Lagos, Los Ríos y
+Araucanía persiste una subestimación importante, por lo que aumentar pérdidas
+de envolvente por sí solo no explica toda la diferencia entre el MVP y REDPE.
+
+El aumento del consumo simulado también reduce el combustible no asignado,
+pero incrementa la energía de calefacción no satisfecha en algunos registros,
+especialmente Magallanes. Esto muestra que la severidad climática aumenta la
+demanda y el consumo potencial, pero también expone las limitaciones de la
+capacidad y de la regla anual de asignación de combustible del MVP.
+
 ## Archivos generados
 
-Los resultados quedan en
-`outputs/chile_wood_stove_regional_dispersion/`:
+Los resultados de la corrida base quedan en
+`outputs/chile_wood_stove_regional_dispersion/`. La corrida con severidad
+HDD12 queda en
+`outputs/chile_wood_stove_regional_dispersion_hdd12/`:
 
 - `selected_buildings.csv`: los 500 registros seleccionados y sus atributos;
 - `regional_sampling_allocation.csv`: stock regional, prevalencia de leña y
@@ -207,6 +276,8 @@ Los resultados quedan en
   coeficiente de variación por región, además de medias ponderadas por
   `n_inmuebles`;
 - `simulation_errors.csv`: esquema de errores, vacío en esta ejecución;
+- `regional_climate_severity.csv`: HDD regional y multiplicadores aplicados a
+  muros, ventanas e infiltración;
 - `README.md`: resumen de la corrida.
 
 ## Límites y siguiente uso

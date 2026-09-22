@@ -12,6 +12,12 @@ by the REDPE 2020 table, the script also evaluates ``redpe_mid`` using the
 regional mid-range target per consumer dwelling.  The latter is a reference
 fuel target and is intentionally kept separate from the coverage sensitivity.
 
+With ``--apply-climate-severity``, the southern and austral regions apply a
+moderated construction-loss proxy derived from annual heating degree days
+(HDD12).  This is deliberately separate from the base run because the 5R1C
+model already receives the hourly outdoor temperature; the HDD factor is only
+a proxy for omitted wind/rain exposure and unobserved envelope quality.
+
 Credentials are read from ``GEONODE_*`` environment variables.  An optional
 env file can be supplied for local development; it is never written to the
 repository.
@@ -75,6 +81,15 @@ ERROR_COLUMNS = [
     "error_type",
     "error",
 ]
+SEVERITY_REGIONS = {9, 10, 11, 12, 14}
+HDD_REFERENCE_REGION = 9
+DEFAULT_HDD_BASE_C = 12.0
+HDD_WALL_EXPONENT = 0.20
+HDD_WINDOW_EXPONENT = 0.20
+HDD_INFILTRATION_EXPONENT = 0.35
+BASE_WALL_U_MULTIPLIER = 1.10
+BASE_WINDOW_U_MULTIPLIER = 1.08
+BASE_INFILTRATION_MULTIPLIER = 1.20
 
 
 def _parse_args():
@@ -113,6 +128,20 @@ def _parse_args():
     )
     parser.add_argument("--efficiency", type=float, default=DEFAULT_EFFICIENCY)
     parser.add_argument(
+        "--apply-climate-severity",
+        action="store_true",
+        help=(
+            "Aplica multiplicadores de U e infiltracion derivados de HDD12 "
+            "en Araucania, Los Rios, Los Lagos, Aysen y Magallanes."
+        ),
+    )
+    parser.add_argument(
+        "--hdd-base-c",
+        type=float,
+        default=DEFAULT_HDD_BASE_C,
+        help="Temperatura base de grados-dia de calefaccion (default: 12 C).",
+    )
+    parser.add_argument(
         "--env-file",
         type=Path,
         default=None,
@@ -136,6 +165,8 @@ def _parse_args():
         parser.error("--minimum-samples-per-region debe ser mayor que cero.")
     if not 0 < args.efficiency <= 1:
         parser.error("--efficiency debe estar en (0, 1].")
+    if not 0 < args.hdd_base_c < 30:
+        parser.error("--hdd-base-c debe estar entre 0 y 30 C.")
     return args
 
 
@@ -419,6 +450,145 @@ def _load_sampled_buildings(
     return buildings
 
 
+def _load_weather_cache(engine, buildings, year):
+    """Load each communal weather series once for the selected sample."""
+    weather_cache = {}
+    commune_ids = sorted(buildings["tmy_commune_id"].dropna().astype(int).unique())
+    for position, commune_id in enumerate(commune_ids, start=1):
+        print(f"[{position}/{len(commune_ids)}] cargo ERA5 commune_id={commune_id}")
+        weather_cache[commune_id] = _load_era5_weather(engine, commune_id, year)
+    return weather_cache
+
+
+def _load_regional_hdd(engine, year, base_temperature_c):
+    """Load wood-population-weighted HDD from all eligible regional units."""
+    query = text(
+        """
+        WITH wood_population AS (
+            SELECT
+                c.cut_region AS codigo_region,
+                COALESCE(c.cut_comuna, e.codigo_comuna) AS commune_id,
+                SUM(GREATEST(COALESCE(e.n_inmuebles, 1), 1))::double precision
+                    AS wood_units
+            FROM merlin_rcp.edificios AS e
+            JOIN merlin_rcp.comunas_sii_cut AS c
+              ON c.codigo_sii = e.codigo_comuna
+            WHERE lower(trim(e.tipo_comb_calef)) = 'lena'
+              AND c.cut_region IN (9, 10, 11, 12, 14)
+              AND e.episcope_archetype ~ :archetype_re
+              AND e.area_promedio_inmueble IS NOT NULL
+              AND e.area_promedio_inmueble > 0
+              AND e.longitud IS NOT NULL
+              AND e.latitud IS NOT NULL
+            GROUP BY c.cut_region, COALESCE(c.cut_comuna, e.codigo_comuna)
+        ), daily AS (
+            SELECT
+                p.codigo_region,
+                p.commune_id,
+                p.wood_units,
+                (m.timestamp_utc AT TIME ZONE 'America/Santiago')::date
+                    AS local_date,
+                AVG(m.tdry)::double precision AS tmean_c
+            FROM wood_population AS p
+            JOIN meteorology_commune.era5_hourly_comunal AS m
+              ON m.commune_id = p.commune_id
+            WHERE (m.timestamp_utc AT TIME ZONE 'America/Santiago')::date
+                    >= :start_date
+              AND (m.timestamp_utc AT TIME ZONE 'America/Santiago')::date
+                    < :end_date
+            GROUP BY
+                p.codigo_region,
+                p.commune_id,
+                p.wood_units,
+                (m.timestamp_utc AT TIME ZONE 'America/Santiago')::date
+        ), commune_hdd AS (
+            SELECT
+                codigo_region,
+                commune_id,
+                wood_units,
+                SUM(GREATEST(:base_temperature_c - tmean_c, 0.0))
+                    AS hdd
+            FROM daily
+            GROUP BY codigo_region, commune_id, wood_units
+        )
+        SELECT
+            codigo_region,
+            SUM(wood_units) AS wood_units,
+            SUM(hdd * wood_units) / SUM(wood_units) AS hdd
+        FROM commune_hdd
+        GROUP BY codigo_region
+        ORDER BY codigo_region
+        """
+    )
+    with engine.connect() as connection:
+        regional = pd.read_sql_query(
+            query,
+            connection,
+            params={
+                "archetype_re": VALID_ARCHETYPE_RE,
+                "start_date": f"{int(year)}-01-01",
+                "end_date": f"{int(year) + 1}-01-01",
+                "base_temperature_c": float(base_temperature_c),
+            },
+        )
+    if regional.empty:
+        raise RuntimeError("No se pudo calcular HDD regional para el stock de lena.")
+    return {
+        int(row.codigo_region): float(row.hdd)
+        for row in regional.itertuples(index=False)
+    }
+
+
+def _climate_severity_parameters(
+    regional_hdd, base_temperature_c, enabled
+):
+    """Build region-level envelope proxies from the selected sample's HDD."""
+    neutral = {
+        "enabled": False,
+        "hdd_base_c": float(base_temperature_c),
+        "hdd_regional": np.nan,
+        "hdd_reference_c": np.nan,
+        "hdd_ratio": np.nan,
+        "envelope_factors": {
+            "wall_u_multiplier": 1.0,
+            "window_u_multiplier": 1.0,
+            "infiltration_multiplier": 1.0,
+        },
+    }
+    parameters = {region_code: dict(neutral) for region_code in REGION_NAMES}
+    if not enabled:
+        return parameters
+
+    hdd_by_region = regional_hdd
+    if HDD_REFERENCE_REGION not in hdd_by_region:
+        raise RuntimeError(
+            f"No se pudo calcular HDD para la region de referencia "
+            f"{HDD_REFERENCE_REGION}."
+        )
+    reference_hdd = hdd_by_region[HDD_REFERENCE_REGION]
+    if reference_hdd <= 0:
+        raise RuntimeError("El HDD de referencia debe ser positivo.")
+
+    for region_code, hdd in hdd_by_region.items():
+        ratio = max(hdd / reference_hdd, 1e-9)
+        parameters[region_code] = {
+            "enabled": True,
+            "hdd_base_c": float(base_temperature_c),
+            "hdd_regional": hdd,
+            "hdd_reference_c": reference_hdd,
+            "hdd_ratio": ratio,
+            "envelope_factors": {
+                "wall_u_multiplier": BASE_WALL_U_MULTIPLIER
+                * ratio**HDD_WALL_EXPONENT,
+                "window_u_multiplier": BASE_WINDOW_U_MULTIPLIER
+                * ratio**HDD_WINDOW_EXPONENT,
+                "infiltration_multiplier": BASE_INFILTRATION_MULTIPLIER
+                * ratio**HDD_INFILTRATION_EXPONENT,
+            },
+        }
+    return parameters
+
+
 def _scenario_row(building, model, year, efficiency, scenario, target_fuel, **extra):
     heating_load = model.detailedResults["Heating Load"]
     demand_kwh = float(heating_load.sum())
@@ -476,11 +646,47 @@ def _scenario_row(building, model, year, efficiency, scenario, target_fuel, **ex
     return row
 
 
-def _simulate_building(building, weather, year, efficiency):
-    model, archetype, persons, area_m2 = _build_model(building, weather)
+def _simulate_building(
+    building, weather, year, efficiency, severity_parameters=None
+):
+    region_code = int(building["codigo_region"])
+    severity = (severity_parameters or {}).get(region_code)
+    if severity is None:
+        severity = {
+            "enabled": False,
+            "hdd_base_c": np.nan,
+            "hdd_regional": np.nan,
+            "hdd_reference_c": np.nan,
+            "hdd_ratio": np.nan,
+            "envelope_factors": {
+                "wall_u_multiplier": 1.0,
+                "window_u_multiplier": 1.0,
+                "infiltration_multiplier": 1.0,
+            },
+        }
+    model, archetype, persons, area_m2 = _build_model(
+        building,
+        weather,
+        envelope_factors=(
+            severity["envelope_factors"] if severity["enabled"] else None
+        ),
+    )
     heating_load = model.detailedResults["Heating Load"]
     demand_kwh = float(heating_load.sum())
     rows = []
+    severity_extra = {
+        "climate_severity_adjustment": bool(severity["enabled"]),
+        "hdd_base_c": severity["hdd_base_c"],
+        "hdd_regional": severity["hdd_regional"],
+        "hdd_reference_region": HDD_REFERENCE_REGION,
+        "hdd_reference_c": severity["hdd_reference_c"],
+        "hdd_ratio_to_reference": severity["hdd_ratio"],
+        "wall_u_multiplier": severity["envelope_factors"]["wall_u_multiplier"],
+        "window_u_multiplier": severity["envelope_factors"]["window_u_multiplier"],
+        "infiltration_multiplier": severity["envelope_factors"][
+            "infiltration_multiplier"
+        ],
+    }
 
     coverage = 0.75
     coverage_target = demand_kwh * coverage / efficiency
@@ -503,6 +709,7 @@ def _simulate_building(building, weather, year, efficiency):
             thermal_zone=archetype["thermal_zone"],
             model_persons=persons,
             model_area_m2=area_m2,
+            **severity_extra,
         )
     )
 
@@ -532,6 +739,7 @@ def _simulate_building(building, weather, year, efficiency):
                 thermal_zone=archetype["thermal_zone"],
                 model_persons=persons,
                 model_area_m2=area_m2,
+                **severity_extra,
             )
         )
     return rows
@@ -546,6 +754,7 @@ def _summary_table(results):
         "unallocated_fuel_energy_kwh",
         "wood_volume_stere",
         "unmet_heating_energy_kwh",
+        "redpe_target_m3st",
     ]
     rows = []
     for (region_code, region, scenario), group in results.groupby(
@@ -583,6 +792,39 @@ def _summary_table(results):
             row[f"{column}_weighted_mean"] = float(
                 np.average(series.to_numpy(dtype=float), weights=weights.to_numpy(dtype=float))
             )
+        redpe_target = pd.to_numeric(
+            group["redpe_target_m3st"], errors="coerce"
+        ).dropna()
+        row["redpe_mid_target_m3st"] = (
+            float(redpe_target.iloc[0]) if not redpe_target.empty else np.nan
+        )
+        simulated_volume = row["wood_volume_stere_weighted_mean"]
+        row["wood_volume_to_redpe_mid_ratio"] = (
+            simulated_volume / row["redpe_mid_target_m3st"]
+            if np.isfinite(row["redpe_mid_target_m3st"])
+            and row["redpe_mid_target_m3st"] > 0
+            else np.nan
+        )
+        row["relative_error_to_redpe_mid"] = (
+            row["wood_volume_to_redpe_mid_ratio"] - 1.0
+            if np.isfinite(row["wood_volume_to_redpe_mid_ratio"])
+            else np.nan
+        )
+        row["climate_severity_adjustment"] = bool(
+            group["climate_severity_adjustment"].iloc[0]
+        )
+        row["hdd_base_c"] = float(group["hdd_base_c"].iloc[0])
+        row["hdd_regional"] = float(group["hdd_regional"].iloc[0])
+        row["hdd_ratio_to_reference"] = float(
+            group["hdd_ratio_to_reference"].iloc[0]
+        )
+        row["wall_u_multiplier"] = float(group["wall_u_multiplier"].iloc[0])
+        row["window_u_multiplier"] = float(
+            group["window_u_multiplier"].iloc[0]
+        )
+        row["infiltration_multiplier"] = float(
+            group["infiltration_multiplier"].iloc[0]
+        )
         median_demand = row["heating_demand_kwh_median"]
         row["heating_demand_cv"] = (
             row["heating_demand_kwh_std"] / median_demand
@@ -617,6 +859,14 @@ def _write_report(output_dir, args, buildings, results, summary, errors):
         f"- Ano meteorologico: `{args.year}`.",
         f"- Muestra solicitada: `{args.total_samples if args.samples_per_region is None else args.samples_per_region}` registros `edificio_id`, semilla `{args.seed}`.",
         f"- Eficiencia de estufa: `{args.efficiency:.2f}`.",
+        (
+            f"- Severidad climatica: HDD base `{args.hdd_base_c:.1f} C`, "
+            "aplicada a Araucania, Los Rios, Los Lagos, Aysen y Magallanes; "
+            "los exponentes amortiguan la doble contabilizacion con la "
+            "temperatura que ya usa 5R1C."
+            if args.apply_climate_severity
+            else "- Severidad climatica: sin ajuste; corrida base."
+        ),
         f"- {sampling_description} La prevalencia se reporta como unidades a lena sobre el stock regional elegible.",
         "- Un `edificio_id` puede representar varias unidades habitacionales; por eso se conserva `n_inmuebles` y el factor de expansion regional.",
         "- Escenario comparable: `coverage_mid`, 75% de cobertura util de calefaccion.",
@@ -671,6 +921,7 @@ def _write_report(output_dir, args, buildings, results, summary, errors):
         )
 
     redpe_regions = summary[summary["scenario"] == "redpe_mid"]["region"].tolist()
+    redpe_summary = summary[summary["scenario"] == "redpe_mid"]
     lines.extend(
         [
             "",
@@ -681,6 +932,48 @@ def _write_report(output_dir, args, buildings, results, summary, errors):
             + ". Las regiones sin fila REDPE se mantienen en el escenario comparable de cobertura.",
         ]
     )
+    if not redpe_summary.empty:
+        lines.extend(
+            [
+                "",
+                "### Comparacion ponderada contra REDPE_mid",
+                "",
+                "El valor simulado es la media ponderada por `n_inmuebles` de los registros seleccionados.",
+                "",
+                "| Region | REDPE_mid (m3 st/a) | Simulado (m3 st/a) | Ratio | Error relativo |",
+                "|---|---:|---:|---:|---:|",
+            ]
+        )
+        for row in redpe_summary.itertuples(index=False):
+            lines.append(
+                f"| {row.region} | {row.redpe_mid_target_m3st:.3f} | "
+                f"{row.wood_volume_stere_weighted_mean:.3f} | "
+                f"{row.wood_volume_to_redpe_mid_ratio:.3f} | "
+                f"{row.relative_error_to_redpe_mid:.1%} |"
+            )
+    if args.apply_climate_severity:
+        severity_summary = (
+            summary[summary["climate_severity_adjustment"]]
+            .drop_duplicates("codigo_region")
+            .sort_values("codigo_region")
+        )
+        lines.extend(
+            [
+                "",
+                "### Factores de severidad climatica",
+                "",
+                "HDD calculados con temperatura media diaria y ponderacion por el stock elegible regional.",
+                "",
+                "| Region | HDD base 12 C | HDD regional | HDD/ref. | U muros | U ventanas | Infiltracion |",
+                "|---|---:|---:|---:|---:|---:|---:|",
+            ]
+        )
+        for row in severity_summary.itertuples(index=False):
+            lines.append(
+                f"| {row.region} | {row.hdd_base_c:.1f} | {row.hdd_regional:.1f} | "
+                f"{row.hdd_ratio_to_reference:.3f} | {row.wall_u_multiplier:.3f} | "
+                f"{row.window_u_multiplier:.3f} | {row.infiltration_multiplier:.3f} |"
+            )
     if errors:
         lines.extend(
             [
@@ -737,22 +1030,61 @@ def main():
         args.output_dir / "regional_sampling_allocation.csv", index=False
     )
 
-    weather_cache = {}
+    regional_hdd = (
+        _load_regional_hdd(engine, args.year, args.hdd_base_c)
+        if args.apply_climate_severity
+        else {}
+    )
+    weather_cache = _load_weather_cache(engine, buildings, args.year)
+    severity_parameters = _climate_severity_parameters(
+        regional_hdd,
+        args.hdd_base_c,
+        args.apply_climate_severity,
+    )
+    severity_rows = []
+    for region_code in sorted(SEVERITY_REGIONS):
+        severity = severity_parameters.get(region_code)
+        if severity is None or not severity["enabled"]:
+            continue
+        severity_rows.append(
+            {
+                "codigo_region": region_code,
+                "region": REGION_NAMES[region_code],
+                "hdd_base_c": severity["hdd_base_c"],
+                "hdd_regional": severity["hdd_regional"],
+                "hdd_reference_region": HDD_REFERENCE_REGION,
+                "hdd_reference_c": severity["hdd_reference_c"],
+                "hdd_ratio_to_reference": severity["hdd_ratio"],
+                **severity["envelope_factors"],
+            }
+        )
+    pd.DataFrame(
+        severity_rows,
+        columns=[
+            "codigo_region",
+            "region",
+            "hdd_base_c",
+            "hdd_regional",
+            "hdd_reference_region",
+            "hdd_reference_c",
+            "hdd_ratio_to_reference",
+            "wall_u_multiplier",
+            "window_u_multiplier",
+            "infiltration_multiplier",
+        ],
+    ).to_csv(args.output_dir / "regional_climate_severity.csv", index=False)
+
     result_rows = []
     errors = []
     for position, building in enumerate(buildings.to_dict("records"), start=1):
         commune_id = int(building["tmy_commune_id"])
         try:
-            if commune_id not in weather_cache:
-                print(f"[{position}/{len(buildings)}] cargo ERA5 commune_id={commune_id}")
-                weather_cache[commune_id] = _load_era5_weather(
-                    engine, commune_id, args.year
-                )
             rows = _simulate_building(
                 building,
                 weather_cache[commune_id],
                 args.year,
                 args.efficiency,
+                severity_parameters=severity_parameters,
             )
             result_rows.extend(rows)
             print(
