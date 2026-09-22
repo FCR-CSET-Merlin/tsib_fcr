@@ -129,6 +129,41 @@ alcanza un valor mediano cercano a `REDPE_mid`. La sensibilidad no constituye
 una calibración física y todavía no combina simultáneamente HDD, eventos,
 banda horaria y setpoint.
 
+## Primera corrida del predictor sin objetivo anual
+
+Como prueba del nuevo modo predictivo, se simuló un inmueble por región con
+7,5 kWh por leño, 219 leños por m³ estéreo, máximo de cuatro leños por evento,
+umbral térmico de 8 °C y operación de 08:00 a 23:00. Estos valores son
+consumos predichos por eventos y no medianas regionales; `REDPE_mid` aparece
+únicamente como validación posterior.
+
+| Región | Leña predicha (m³ st/a) | REDPE_mid | Error relativo | Eventos |
+|---|---:|---:|---:|---:|
+| Tarapacá | 0,790 | — | — | 173 |
+| Antofagasta | 0,078 | — | — | 16 |
+| Atacama | 4,616 | — | — | 1.011 |
+| Coquimbo | 2,183 | — | — | 440 |
+| Valparaíso | 1,717 | — | — | 371 |
+| O’Higgins | 2,037 | 3,77 | -46,0% | 446 |
+| Maule | 2,237 | 5,35 | -58,1% | 490 |
+| Biobío | 3,041 | 7,15 | -57,4% | 657 |
+| Araucanía | 4,384 | 11,06 | -60,3% | 959 |
+| Los Lagos | 6,489 | 16,10 | -59,7% | 1.412 |
+| Aysén | 3,105 | 24,87 | -87,5% | 680 |
+| Magallanes | 9,717 | 23,35 | -58,4% | 1.761 |
+| RM | 1,233 | 2,80 | -55,9% | 270 |
+| Los Ríos | 4,557 | 14,16 | -67,8% | 988 |
+| Arica y Parinacota | 0,215 | — | — | 47 |
+| Ñuble | 8,959 | — | — | 675 |
+
+La primera corrida conserva el orden climático esperado entre Antofagasta y
+RM para los inmuebles seleccionados, pero subestima REDPE en todas las
+regiones con referencia disponible. Esto no se corrige inyectando REDPE como
+objetivo: se debe revisar la potencia efectiva, frecuencia de recarga,
+setpoint, respuesta térmica del edificio y retroalimentación de la temperatura
+interior. El detalle horario está en
+`outputs/chile_wood_stove_predictive_regional/`.
+
 ## Interpretación principal
 
 1. El 5R1C base cuantifica la demanda térmica, pero no determina por sí solo

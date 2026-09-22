@@ -259,6 +259,14 @@ La hipótesis de calidad constructiva se explora con el DOE
 `examples/chile/run_wood_stove_construction_doe.py`, que varía U de muros,
 U de ventanas e infiltración y valida las configuraciones contra la cohorte.
 
+El predictor de eventos sin objetivo anual está disponible mediante
+`tsib.simulate_wood_stove_predictive_events(...)`. Usa demanda 5R1C,
+temperatura exterior, horario de operación y cargas discretas de 1–4 leños;
+`REDPE_mid` se utiliza sólo como comparación posterior. La prueba de un
+inmueble por región está en
+`outputs/chile_wood_stove_predictive_regional/` y se reproduce con
+`examples/chile/run_wood_stove_predictive_regional.py`.
+
 La compilación cronológica de medianas regionales del 5R1C base, MVP,
 eventos, banda horaria, setpoints y ajuste HDD12 está en
 [`RESULTS_COMPILATION_WOOD_STOVE.md`](RESULTS_COMPILATION_WOOD_STOVE.md).

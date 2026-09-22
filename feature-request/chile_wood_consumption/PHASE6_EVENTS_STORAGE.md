@@ -212,6 +212,40 @@ objetivo REDPE excede la energía que la regla de eventos consigue quemar en el
 horizonte bajo sus intervalos y tamaños de carga. Esta diferencia es un
 resultado de control y horizonte, no una estimación física del consumo.
 
+## Modelo predictivo de eventos sin objetivo anual
+
+La función `tsib.simulate_wood_stove_predictive_events(...)` es una ruta
+separada de los modelos MVP y de eventos calibrados contra un objetivo. No
+recibe `fuel_energy_target_kwh`. El consumo resulta de cargas discretas de
+leños seleccionadas por una heurística térmica:
+
+```text
+T_setpoint - T_ext >= trigger_delta_c
+Heating Load >= start_load_threshold_kw
+hora disponible: 08:00 <= hora < 23:00
+```
+
+El valor inicial de `trigger_delta_c` es 8 °C. La regla evita encender la
+estufa sólo porque el interior esté frío si el exterior está templado; también
+requiere demanda térmica o un déficit interior opcional. La temperatura
+interior todavía no se retroalimenta al 5R1C, por lo que el predictor usa la
+demanda 5R1C como señal térmica y deja el acoplamiento cerrado para una etapa
+posterior.
+
+Cada evento consume entre 1 y 4 leños, con 7,5 kWh químicos por leño. Se
+representan 30 minutos de arranque y 1 hora de combustión en una señal de 30
+minutos. La conversión de volumen usa 219 leños por m³ estéreo. El calor
+potencial que supera la demanda se reporta como `excess_useful_energy_kwh`;
+no se elimina de la leña consumida ni se usa para completar un objetivo REDPE.
+
+El adaptador
+`tsib.simulate_wood_stove_predictive_events_from_5r1c(...)` lee la demanda y
+las señales de temperatura de un resultado 5R1C. El ejemplo
+`examples/chile/run_wood_stove_predictive_regional.py` ejecuta un inmueble por
+región y consulta `REDPE_mid` únicamente después de la simulación. La corrida
+de prueba queda en
+`outputs/chile_wood_stove_predictive_regional/`.
+
 ## Límites de esta primera versión
 
 - El controlador es una regla determinista de umbral, no un modelo de

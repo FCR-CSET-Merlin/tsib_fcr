@@ -1,8 +1,9 @@
 # Plan — Estado del arte y módulo 5R1C para estufa a leña
 
-**Estado:** Fases 0–6 ejecutadas; Fase 6 incluye eventos, almacenamiento y
-calibración numérica regional contra `REDPE_mid`. Queda pendiente la
-calibración física, evaluar retroalimentación térmica y preparar el PR.
+**Estado:** Fases 0–6 ejecutadas; la Fase 6B agrega un primer predictor de
+eventos sin objetivo anual y una validación independiente contra `REDPE_mid`.
+Queda pendiente la retroalimentación de temperatura interior, la calibración
+física y preparar el PR.
 **Rama:** `feature/chile-wood-stove-simulation`
 **Objetivo:** identificar enfoques publicados y diseñar una primera implementación de calefacción con estufa a leña compatible con `tsib-fcr`, sin duplicar energía ni alterar `elecLoad`.
 
@@ -295,6 +296,48 @@ combustible asignado; no se fuerza el resultado cuando la demanda 5R1C o la
 regla de eventos no permiten quemar toda la energía objetivo. El detalle de
 errores, combustible no asignado, demanda no satisfecha y parámetros está en
 `outputs/chile_wood_stove_regional_cohort_calibration/`.
+
+### Fase 6B — Modelo predictivo de eventos sin objetivo REDPE
+
+Esta fase separa el consumo predicho de la referencia REDPE. El modelo no
+recibe `fuel_energy_target_kwh`; calcula la cantidad de leños a partir de la
+demanda horaria 5R1C y una regla de operación:
+
+```text
+encender si:
+    Heating Load >= umbral
+    y T_setpoint - T_ext >= umbral térmico
+    y la hora está entre 08:00 y 23:00
+```
+
+La parametrización inicial usa:
+
+- 7,5 kWh de energía química por leño;
+- 219 leños por m³ estéreo;
+- 30 minutos de arranque y 1 hora de combustión;
+- 50% de eficiencia de conversión combustible–calor útil;
+- 8 °C como umbral inicial para `T_setpoint - T_ext`;
+- 3 horas mínimas entre inicios de eventos;
+- 20% de la energía del evento durante el arranque, supuesto explícito
+  pendiente de validación física.
+
+La resolución se lleva a 30 minutos para representar el arranque de media
+hora. La energía de leña se integra desde los eventos realmente quemados; el
+modelo reporta por separado calor útil asignado, calor potencial excedente y
+demanda no satisfecha. Ninguna de estas magnitudes se fuerza a coincidir con
+REDPE.
+
+La implementación está en
+`tsib.simulate_wood_stove_predictive_events(...)` y su adaptador 5R1C en
+`tsib.simulate_wood_stove_predictive_events_from_5r1c(...)`. La prueba
+regional usa un inmueble por región y guarda sus resultados en
+`outputs/chile_wood_stove_predictive_regional/`. `REDPE_mid` se consulta sólo
+después de simular para calcular el error relativo.
+
+Esta primera versión sigue siendo un acoplamiento unidireccional: recibe el
+`Heating Load` y no reinyecta todavía el calor de la estufa en `T_air`, `T_s` y
+`T_m`. Por ello, el exceso útil se reporta como diagnóstico y no modifica la
+temperatura interior. La siguiente subfase debe cerrar ese balance térmico.
 
 ### Fase 7 — Entrega
 

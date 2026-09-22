@@ -244,3 +244,72 @@ def test_event_parameter_calibration_uses_mvp_as_numerical_reference():
     assert calibration.best_result.assigned_useful_energy_kwh == pytest.approx(
         calibration.reference_result.assigned_useful_energy_kwh
     )
+
+
+def test_predictive_events_do_not_require_an_annual_fuel_target():
+    index = pd.date_range("2024-07-01 08:00", periods=8, freq="30min")
+    load = pd.Series([4.0] * 8, index=index)
+    outdoor = pd.Series([20.0, 20.0, 5.0, 5.0, 5.0, 5.0, 20.0, 20.0], index=index)
+    setpoint = pd.Series(20.0, index=index)
+
+    result = tsib.simulate_wood_stove_predictive_events(
+        load,
+        outdoor_temperature_c=outdoor,
+        heating_setpoint_c=setpoint,
+        dt_hours=0.5,
+        efficiency=0.50,
+        log_energy_kwh=7.5,
+        logs_per_stere=219.0,
+        trigger_delta_c=8.0,
+        start_load_threshold_kw=0.25,
+        startup_duration_hours=0.5,
+        combustion_duration_hours=1.0,
+    )
+
+    assert result.event_count == 1
+    assert not result.event_start.iloc[0]
+    assert not result.event_start.iloc[1]
+    assert result.event_start.iloc[2]
+    assert result.wood_logs_burned == pytest.approx(2.0)
+    assert result.fuel_energy_consumed_kwh == pytest.approx(15.0)
+    assert result.wood_volume_stere == pytest.approx(2.0 / 219.0)
+    assert result.excess_useful_energy_kwh > 0
+    assert result.unmet_heating_energy_kwh > 0
+
+
+def test_predictive_events_require_the_outdoor_temperature_trigger():
+    index = pd.date_range("2024-07-01 08:00", periods=6, freq="30min")
+    result = tsib.simulate_wood_stove_predictive_events(
+        pd.Series(4.0, index=index),
+        outdoor_temperature_c=pd.Series(20.0, index=index),
+        heating_setpoint_c=pd.Series(20.0, index=index),
+        dt_hours=0.5,
+        trigger_delta_c=8.0,
+    )
+
+    assert result.event_count == 0
+    assert result.fuel_energy_consumed_kwh == pytest.approx(0.0)
+    assert result.wood_volume_stere == pytest.approx(0.0)
+
+
+def test_predictive_5r1c_adapter_reads_temperature_columns_without_mutation():
+    index = pd.date_range("2024-07-01 08:00", periods=6, freq="30min")
+    detailed_results = pd.DataFrame(
+        {
+            "Heating Load": [4.0] * 6,
+            "T_e": [5.0] * 6,
+            "Heating Setpoint": [20.0] * 6,
+        },
+        index=index,
+    )
+    original = detailed_results.copy(deep=True)
+
+    result = tsib.simulate_wood_stove_predictive_events_from_5r1c(
+        detailed_results,
+        dt_hours=0.5,
+        trigger_delta_c=8.0,
+    )
+
+    assert result.event_count == 1
+    assert result.outdoor_temperature_c.index.equals(index)
+    pd.testing.assert_frame_equal(detailed_results, original)
