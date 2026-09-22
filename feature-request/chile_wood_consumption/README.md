@@ -246,7 +246,8 @@ También se ejecutó una sensibilidad de setpoint invernal a 22 °C y 24 °C par
 Magallanes, Los Ríos, Los Lagos y Araucanía. El análisis está en
 [`SETPOINT_SENSITIVITY_SOUTH.md`](SETPOINT_SENSITIVITY_SOUTH.md) y se puede
 reproducir con
-`examples/chile/analyze_wood_stove_setpoint_sensitivity.py`.
+`examples/chile/analyze_wood_stove_setpoint_sensitivity.py`. La corrida usa
+disponibilidad de la estufa entre las 08:00 y las 23:00.
 
 Para inspeccionar un día horario se puede usar
 `examples/chile/inspect_wood_stove_winter_day.py`. El ejemplo de Natales

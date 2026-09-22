@@ -48,6 +48,8 @@ def _parse_args():
     )
     parser.add_argument("--year", type=int, default=DEFAULT_YEAR)
     parser.add_argument("--efficiency", type=float, default=DEFAULT_EFFICIENCY)
+    parser.add_argument("--operation-start-hour", type=int, default=8)
+    parser.add_argument("--operation-end-hour", type=int, default=23)
     parser.add_argument(
         "--winter-setpoints",
         type=float,
@@ -68,6 +70,8 @@ def _parse_args():
         parser.error("--winter-setpoints debe contener al menos un valor.")
     if not 0 < args.efficiency <= 1:
         parser.error("--efficiency debe estar en (0, 1].")
+    if not 0 <= args.operation_start_hour < args.operation_end_hour <= 24:
+        parser.error("El horario debe cumplir 0 <= inicio < fin <= 24.")
     if not args.region_code:
         parser.error("--region-code debe contener al menos una región.")
     return args
@@ -110,6 +114,8 @@ def _run_scenario(
     target_fuel,
     target_volume,
     event_parameters,
+    operation_start_hour,
+    operation_end_hour,
 ):
     rows = []
     for building in buildings.to_dict("records"):
@@ -125,6 +131,10 @@ def _run_scenario(
             heating_load,
             fuel_energy_target_kwh=target_fuel,
             efficiency=efficiency,
+            availability=(
+                (heating_load.index.hour >= operation_start_hour)
+                & (heating_load.index.hour < operation_end_hour)
+            ),
             **event_parameters,
         )
         rows.append(
@@ -227,7 +237,9 @@ def _write_report(output_dir, args, summary):
         "reemplaza el setpoint de calefacción de junio, julio y agosto; el resto",
         "del año conserva el perfil mensual chileno por zona térmica. Durante",
         "la sensibilidad, el setpoint de enfriamiento invernal se mantiene 2 °C",
-        "por encima del setpoint de calefacción.",
+        "por encima del setpoint de calefacción. Los eventos sólo pueden iniciar",
+        f"entre las {args.operation_start_hour:02d}:00 y {args.operation_end_hour:02d}:00;",
+        "si ya comenzaron, terminan según su duración configurada.",
         "",
         "- Regiones: "
         + ", ".join(
@@ -310,6 +322,8 @@ def main():
                     target_fuel,
                     target_volume,
                     event_parameters,
+                    args.operation_start_hour,
+                    args.operation_end_hour,
                 )
             )
     results = pd.concat(result_frames, ignore_index=True)

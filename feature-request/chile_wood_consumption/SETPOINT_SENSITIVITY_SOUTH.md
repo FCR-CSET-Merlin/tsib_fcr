@@ -13,7 +13,8 @@ reemplazan únicamente el setpoint de junio, julio y agosto. Los parámetros de
 eventos calibrados por región se mantienen fijos para aislar el efecto del
 setpoint sobre la demanda 5R1C. Durante esos meses, el setpoint de enfriamiento
 se mantiene 2 °C por encima del setpoint de calefacción para conservar una
-banda de confort válida.
+banda de confort válida. Los eventos de la estufa sólo pueden iniciar entre
+las 08:00 y las 23:00; los eventos ya iniciados terminan según su duración.
 
 ## Resultados
 
@@ -25,9 +26,15 @@ banda de confort válida.
 | Araucanía | 7.216,4 | 8.384,4 | 9.022,0 | -21,0% | -14,8% | -12,0% |
 
 El aumento del setpoint mejora el ajuste en las cuatro regiones. A 24 °C, la
-leña simulada alcanza `19,68 m³ st` en Magallanes, `11,72` en Los Ríos,
-`14,37` en Los Lagos y `9,73` en Araucanía. Sin embargo, todavía queda por
+leña simulada alcanza `13,70 m³ st` en Magallanes, `9,23` en Los Ríos,
+`10,96` en Los Lagos y `9,43` en Araucanía. Sin embargo, todavía queda por
 debajo de `REDPE_mid` en todos los casos.
+
+La restricción horaria reduce fuertemente la leña asignada respecto de la
+simulación sin horario: el controlador ya no puede iniciar eventos durante la
+noche y la madrugada. Por ello, la demanda no satisfecha y el combustible no
+asignado aumentan, aunque el setpoint de 22–24 °C sigue reduciendo la brecha
+relativa dentro de cada región.
 
 El efecto no es gratuito en el balance horario: al pasar de la configuración
 actual a 24 °C, disminuye el combustible no asignado, pero aumenta la demanda
@@ -63,6 +70,8 @@ PYTHONPATH=. python examples/chile/analyze_wood_stove_setpoint_sensitivity.py \
   --region-code 12 14 10 9 \
   --year 2024 \
   --winter-setpoints 22 24 \
+  --operation-start-hour 8 \
+  --operation-end-hour 23 \
   --output-dir outputs/chile_wood_stove_setpoint_sensitivity_south
 ```
 

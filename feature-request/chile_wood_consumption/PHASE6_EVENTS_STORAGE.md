@@ -173,7 +173,9 @@ mantiene 2 °C por encima del de calefacción durante esos meses. La demanda
 aumentó y la brecha contra `REDPE_mid` se redujo en las cuatro regiones, pero
 también aumentó la demanda no satisfecha. El análisis está documentado en
 `SETPOINT_SENSITIVITY_SOUTH.md` y sus CSV quedan en
-`outputs/chile_wood_stove_setpoint_sensitivity_south/`.
+`outputs/chile_wood_stove_setpoint_sensitivity_south/`. En la nueva corrida,
+los eventos sólo pueden iniciar entre las 08:00 y las 23:00; un evento ya
+iniciado puede terminar según su duración configurada.
 
 También se agregó
 `examples/chile/inspect_wood_stove_winter_day.py`, que simula el año completo

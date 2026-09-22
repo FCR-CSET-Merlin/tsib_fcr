@@ -43,6 +43,8 @@ def _parse_args():
     parser.add_argument("--region-code", type=int, default=DEFAULT_REGION_CODE)
     parser.add_argument("--year", type=int, default=DEFAULT_YEAR)
     parser.add_argument("--efficiency", type=float, default=DEFAULT_EFFICIENCY)
+    parser.add_argument("--operation-start-hour", type=int, default=8)
+    parser.add_argument("--operation-end-hour", type=int, default=23)
     parser.add_argument(
         "--date",
         default=None,
@@ -59,6 +61,8 @@ def _parse_args():
     args = parser.parse_args()
     if not 0 < args.efficiency <= 1:
         parser.error("--efficiency debe estar en (0, 1].")
+    if not 0 <= args.operation_start_hour < args.operation_end_hour <= 24:
+        parser.error("El horario debe cumplir 0 <= inicio < fin <= 24.")
     return args
 
 
@@ -113,7 +117,16 @@ def _day_mask(index, selected_date):
     return pd.Series(index.date == selected_date, index=index)
 
 
-def _simulate_scenario(building, weather, target_fuel, efficiency, parameters, setpoint):
+def _simulate_scenario(
+    building,
+    weather,
+    target_fuel,
+    efficiency,
+    parameters,
+    setpoint,
+    operation_start_hour,
+    operation_end_hour,
+):
     model, archetype, persons, area_m2 = _build_model(
         building,
         weather,
@@ -124,12 +137,25 @@ def _simulate_scenario(building, weather, target_fuel, efficiency, parameters, s
         heating_load,
         fuel_energy_target_kwh=target_fuel,
         efficiency=efficiency,
+        availability=(
+            (heating_load.index.hour >= operation_start_hour)
+            & (heating_load.index.hour < operation_end_hour)
+        ),
         **parameters,
     )
     return model, stove, archetype, persons, area_m2
 
 
-def _daily_frame(model, stove, weather, selected_date, scenario, region_code):
+def _daily_frame(
+    model,
+    stove,
+    weather,
+    selected_date,
+    scenario,
+    region_code,
+    operation_start_hour,
+    operation_end_hour,
+):
     mask = _day_mask(model.detailedResults.index, selected_date)
     index = model.detailedResults.index[mask.to_numpy()]
     dt_hours = stove.dt_hours
@@ -173,6 +199,10 @@ def _daily_frame(model, stove, weather, selected_date, scenario, region_code):
                 dtype=float
             ),
             "event_state": stove.event_state.loc[index].to_numpy(),
+            "stove_available": (
+                (index.hour >= operation_start_hour)
+                & (index.hour < operation_end_hour)
+            ),
         }
     )
     return frame
@@ -204,7 +234,16 @@ def _summary_row(frame, stove, building_id, selected_date):
     }
 
 
-def _write_report(output_dir, building, archetype, selected_date, summary, parameters):
+def _write_report(
+    output_dir,
+    building,
+    archetype,
+    selected_date,
+    summary,
+    parameters,
+    operation_start_hour,
+    operation_end_hour,
+):
     lines = [
         "# Perfil diario de estufa a leña en invierno",
         "",
@@ -213,6 +252,7 @@ def _write_report(output_dir, building, archetype, selected_date, summary, param
         f"- Arquetipo: `{building['episcope_archetype']}`; zona térmica: `{archetype['thermal_zone']}`.",
         f"- Día seleccionado: `{selected_date.isoformat()}`; criterio: día invernal con menor temperatura media diaria.",
         "- El año completo se simuló antes de extraer el día para conservar el objetivo anual REDPE y el estado de almacenamiento.",
+        f"- Disponibilidad para iniciar eventos: `{operation_start_hour:02d}:00–{operation_end_hour:02d}:00`.",
         "",
         "## Parámetros de la estufa",
         "",
@@ -330,10 +370,24 @@ def main():
     for scenario, setpoint in scenarios:
         print(f"Ejecutando {scenario} para {selected_date}")
         model, stove, archetype, persons, area_m2 = _simulate_scenario(
-            building, weather, target_fuel, args.efficiency, parameters, setpoint
+            building,
+            weather,
+            target_fuel,
+            args.efficiency,
+            parameters,
+            setpoint,
+            args.operation_start_hour,
+            args.operation_end_hour,
         )
         frame = _daily_frame(
-            model, stove, weather, selected_date, scenario, args.region_code
+            model,
+            stove,
+            weather,
+            selected_date,
+            scenario,
+            args.region_code,
+            args.operation_start_hour,
+            args.operation_end_hour,
         )
         frame["edificio_id"] = int(building["edificio_id"])
         frame["episcope_archetype"] = building["episcope_archetype"]
@@ -347,7 +401,16 @@ def main():
     summary = pd.DataFrame(summary_rows)
     hourly.to_csv(args.output_dir / "winter_day_hourly_profile.csv", index=False)
     summary.to_csv(args.output_dir / "winter_day_summary.csv", index=False)
-    _write_report(args.output_dir, building, archetype, selected_date, summary, parameters)
+    _write_report(
+        args.output_dir,
+        building,
+        archetype,
+        selected_date,
+        summary,
+        parameters,
+        args.operation_start_hour,
+        args.operation_end_hour,
+    )
     _write_plot(args.output_dir, hourly)
     print(summary.to_string(index=False, float_format=lambda value: f"{value:.3f}"))
     print(f"Resultados: {args.output_dir}")

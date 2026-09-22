@@ -5,6 +5,7 @@
 - Arquetipo: `CL.SFH.preRT.mad.I`; zona térmica: `I`.
 - Día seleccionado: `2024-06-18`; criterio: día invernal con menor temperatura media diaria.
 - El año completo se simuló antes de extraer el día para conservar el objetivo anual REDPE y el estado de almacenamiento.
+- Disponibilidad para iniciar eventos: `08:00–23:00`.
 
 ## Parámetros de la estufa
 
@@ -18,9 +19,9 @@
 
 | Escenario | T. ambiente media (°C) | T. aire min–max (°C) | Demanda (kWh) | Combustión (kWh) | Calor útil (kWh) | Leña (kg) | Eventos |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| perfil_actual | -10.9 | 17.0–17.0 | 101.5 | 96.0 | 95.6 | 46.08 | 12 |
-| invierno_22C | -10.9 | 22.0–22.0 | 121.4 | 96.0 | 96.0 | 46.08 | 12 |
-| invierno_24C | -10.9 | 24.0–24.0 | 129.4 | 96.0 | 96.0 | 46.08 | 12 |
+| perfil_actual | -10.9 | 17.0–17.0 | 101.5 | 64.0 | 63.6 | 30.72 | 8 |
+| invierno_22C | -10.9 | 22.0–22.0 | 121.4 | 64.0 | 64.0 | 30.72 | 8 |
+| invierno_24C | -10.9 | 24.0–24.0 | 129.4 | 64.0 | 64.0 | 30.72 | 8 |
 
 `stove_combustion_power_kw` es la potencia térmica producida por la
 combustión después de la eficiencia; `stove_useful_power_kw` es la
@@ -30,5 +31,3 @@ PCI = 15 MJ/kg.
 
 Los perfiles horarios completos están en
 `winter_day_hourly_profile.csv`.
-
-![Perfil horario de temperatura, potencia y leña](winter_day_profile.png)
