@@ -258,5 +258,9 @@ interior, potencia de combustión, calor útil y masa de leña por hora en
 La hipótesis de calidad constructiva se explora con el DOE
 `examples/chile/run_wood_stove_construction_doe.py`, que varía U de muros,
 U de ventanas e infiltración y valida las configuraciones contra la cohorte.
+
+La compilación cronológica de medianas regionales del 5R1C base, MVP,
+eventos, banda horaria, setpoints y ajuste HDD12 está en
+[`RESULTS_COMPILATION_WOOD_STOVE.md`](RESULTS_COMPILATION_WOOD_STOVE.md).
 La corrida ampliada y sus resultados están en
 `outputs/chile_wood_stove_construction_doe_south_expanded/`.
