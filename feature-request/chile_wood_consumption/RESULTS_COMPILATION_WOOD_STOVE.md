@@ -60,6 +60,32 @@ La columna de banda horaria sólo existe para Araucanía, Los Ríos, Los Lagos y
 Magallanes, que fueron las regiones seleccionadas para la sensibilidad de
 operación realista de la estufa.
 
+## Comparación transversal contra REDPE_mid
+
+La siguiente tabla concentra las medianas regionales disponibles junto al
+objetivo `REDPE_mid`. Todas las columnas de consumo están en `m³ st/a`. El
+objetivo REDPE representa consumo de combustible por vivienda consumidora; las
+columnas simuladas representan el combustible asignado por el modelo bajo
+cada configuración.
+
+| Región | REDPE_mid | MVP simple | Eventos sin banda | Banda 08–23 | 22 °C | 24 °C | HDD12 MVP |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| O’Higgins | 3,77 | 3,77 | 3,50 | — | — | — | 3,77 |
+| Maule | 5,35 | 5,35 | 5,33 | — | — | — | 5,35 |
+| Biobío | 7,15 | 5,48 | 5,73 | — | — | — | 5,48 |
+| Araucanía | 11,06 | 6,61 | 8,74 | 8,37 | 9,29 | 9,74 | 7,41 |
+| Los Lagos | 16,10 | 7,03 | 14,45 | 9,47 | 10,48 | 10,93 | 8,65 |
+| Aysén | 24,87 | 10,08 | 24,86 | — | — | — | 13,96 |
+| Magallanes | 23,35 | 19,19 | 19,17 | 12,57 | 13,70 | 14,04 | 23,35 |
+| RM | 2,80 | 2,80 | 2,80 | — | — | — | 2,80 |
+| Los Ríos | 14,16 | 7,51 | 10,54 | 7,58 | 8,21 | 8,76 | 8,72 |
+
+La cercanía de Aysén en la columna de eventos sin banda y de Magallanes en la
+columna HDD12 no significa que esas configuraciones sean equivalentes: cada
+una modifica un componente distinto del modelo. En particular, HDD12 se
+aplicó al MVP simple y todavía no se combinó con eventos, banda horaria ni
+setpoint.
+
 ## Efecto de la banda horaria y del setpoint
 
 La corrida de eventos sin banda permite iniciar cargas cuando la demanda lo
