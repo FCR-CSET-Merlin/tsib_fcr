@@ -6,7 +6,7 @@ import pytest
 
 import tsib
 
-from test_chile import _build_cfg, _make_synthetic_tmy
+from test_chile import _build_cfg, _dummy_profiles, _make_synthetic_tmy
 
 
 def _model(n=96, temperature_mean=5.0, q_ig_kw=0.0):
@@ -142,3 +142,35 @@ def test_wood_heat_changes_zone_state_and_preserves_electricity_load():
         stove.detailed_results["Electricity Load"],
         base.detailed_results["Electricity Load"],
     )
+
+
+def test_building_heat_supply_wood_stove_activates_bidirectional_module():
+    weather = _make_synthetic_tmy(T_mean=2.0).iloc[:96]
+    configurator = tsib.BuildingConfiguration(
+        {
+            "ID": "CL.SFH.preRT.mad.D",
+            "country": "CL",
+            "weatherData": weather,
+            "weatherID": "building_wood_stove_test",
+            "refurbishment": False,
+            "autoProfiles": False,
+            "existingHeatSupply": "wood_stove",
+            "woodStoveParameters": {
+                "timestep_minutes": 60,
+                "spinup_passes": 1,
+            },
+        },
+        ignore_profiles=True,
+    )
+    cfg = configurator.getBdgCfg(includeSupply=True)
+    cfg.update(_dummy_profiles(weather.index, q_ig_kw=0.0))
+
+    building = tsib.Building(configurator=configurator)
+    heat_profiles = building.getHeatLoad()
+
+    assert building.cfg["existingHeatSupply"] == "wood_stove"
+    assert building.wood_stove_result is not None
+    assert "Q_wood_useful_kw" in heat_profiles
+    assert "event_state" in heat_profiles
+    assert "Q_wood_useful_kw" in building.thermalmodel.detailedResults
+    assert building.wood_stove_result.event_count > 0

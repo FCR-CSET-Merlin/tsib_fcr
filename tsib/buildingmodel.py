@@ -58,6 +58,9 @@ class Building(object):
         self.IDentries = self.configurator.IDentries
 
         self.thermalmodel = tsib.Building5R1C(self.cfg)
+        # Filled by the opt-in bidirectional wood-stove path when
+        # cfg["existingHeatSupply"] == "wood_stove".
+        self.wood_stove_result = None
 
         # status if the profiles have already been initialized
         self._has_occupancy_profiles = False
@@ -420,18 +423,65 @@ class Building(object):
         else:
             befRef = False
 
-        # run simulation
-        self.thermalmodel.sim5R1C(tee=False)
-
-        # overwrite refurbishment options again
-        self.cfg["refurbishment"] = befRef
+        # Run the historical 5R1C supply path unless the building explicitly
+        # selects the causal wood-stove model.  The configuration switch is
+        # deliberately opt-in; all existing heat-supply values retain their
+        # previous behavior.
+        try:
+            if self.cfg["existingHeatSupply"] == "wood_stove":
+                self.wood_stove_result = tsib.simulate_wood_stove_5r1c_bidirectional(
+                    self.thermalmodel,
+                    **self.cfg.get("woodStoveParameters", {}),
+                )
+                detailed = self.wood_stove_result.detailed_results.copy(deep=True)
+                # Keep the historical columns available.  For this branch,
+                # Heating Load is explicitly the free-float ideal demand; the
+                # delivered wood and auxiliary channels remain separate.
+                detailed["Heating Load"] = detailed[
+                    "free_float_heating_demand_kw"
+                ]
+                detailed["Cooling Load"] = detailed["cooling_kw"]
+                self.thermalmodel.detailedResults = detailed
+            else:
+                self.thermalmodel.sim5R1C(tee=False)
+        finally:
+            # overwrite refurbishment options again, including on a failed
+            # wood-stove run so the Building object is left reusable.
+            self.cfg["refurbishment"] = befRef
 
         self._has_heat_profiles = True
         
-        # define relevant time series 
-        self._heat_profile_names = ['Heating Load', 'Cooling Load']
-
-        self.units.update({'Heating Load':'kW_{th}', 'Cooling Load':'kW_{th}', })
+        # define relevant time series
+        if self.cfg["existingHeatSupply"] == "wood_stove":
+            self._heat_profile_names = [
+                "Heating Load",
+                "Cooling Load",
+                "Q_wood_fuel_kw",
+                "Q_wood_useful_kw",
+                "auxiliary_heating_kw",
+                "unmet_heating_kw",
+                "overheating_c",
+                "event_start",
+                "event_logs",
+                "event_state",
+            ]
+            self.units.update(
+                {
+                    "Heating Load": "kW_{th}",
+                    "Cooling Load": "kW_{th}",
+                    "Q_wood_fuel_kw": "kW_{fuel}",
+                    "Q_wood_useful_kw": "kW_{th}",
+                    "auxiliary_heating_kw": "kW_{th}",
+                    "unmet_heating_kw": "kW_{th}",
+                    "overheating_c": "K",
+                    "event_start": "1",
+                    "event_logs": "logs",
+                    "event_state": "state",
+                }
+            )
+        else:
+            self._heat_profile_names = ['Heating Load', 'Cooling Load']
+            self.units.update({'Heating Load':'kW_{th}', 'Cooling Load':'kW_{th}', })
     
         # append simulation (TODO improve this call)
         self.timeseries = self.timeseries.join(self.thermalmodel.detailedResults[self._heat_profile_names])

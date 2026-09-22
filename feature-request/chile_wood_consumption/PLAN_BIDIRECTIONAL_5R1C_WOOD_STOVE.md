@@ -541,3 +541,9 @@ restantes provienen de compatibilidad preexistente con `pandas` reciente
 Quedan para los siguientes pasos el remuestreo explícito a 30 minutos, el
 spin-up anual con convergencia de eventos, la corrida regional y la validación
 externa. Esta implementación no usa `REDPE_mid`.
+
+La selección desde el flujo de `Building` quedó integrada mediante
+`existingHeatSupply="wood_stove"`. Los parámetros opcionales del escenario se
+pueden pasar en `woodStoveParameters`; `Building.getHeatLoad()` activa entonces
+la API bidireccional y conserva `Heating Load` como demanda ideal libre,
+reportando el calor de leña y la calefacción auxiliar en columnas separadas.

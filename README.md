@@ -101,6 +101,46 @@ q_h_nd = model.detailedResults["Heating Load"].sum() / 70.0
 print(f"Heating demand: {q_h_nd:.1f} kWh/m²/a")
 ```
 
+### 1b. Activate the bidirectional wood-stove simulation from `Building`
+
+Select the heating method in the building configuration. The normal
+`Building.getHeatLoad()` workflow then runs the causal wood-stove/5R1C module;
+other heating methods keep their historical path.
+
+```python
+cfg_obj = tsib.BuildingConfiguration({
+    "ID": "CL.SFH.preRT.mad.D",
+    "country": "CL",
+    "weatherData": tmy,
+    "weatherID": "my_location",
+    "existingHeatSupply": "wood_stove",
+    # Optional overrides; defaults are the documented scenario assumptions.
+    "woodStoveParameters": {
+        "heating_mode": "wood_only",
+        "efficiency": 0.50,
+        "timestep_minutes": 60,  # match hourly weather in this example
+    },
+}, ignore_profiles=True)
+cfg = cfg_obj.getBdgCfg(includeSupply=True)
+cfg.update({
+    "Q_ig": np.full(len(tmy), 0.3),
+    "occ_nothome": pd.Series(0.0, index=tmy.index),
+    "occ_sleeping": pd.Series(0.0, index=tmy.index),
+    "elecLoad": pd.Series(0.0, index=tmy.index),
+    "hotWaterLoad": pd.Series(0.0, index=tmy.index),
+})
+
+building = tsib.Building(configurator=cfg_obj)
+heat = building.getHeatLoad()
+wood_result = building.wood_stove_result
+```
+
+In this branch, the legacy `Heating Load` column remains the free-float ideal
+demand for compatibility. Actual stove fuel, useful heat, auxiliary heat,
+unmet demand, overheating and event state are reported separately in `heat`
+and in `building.wood_stove_result`. The configuration does not use an annual
+REDPE target.
+
 ### 2. Convert BD Ancestral TMY to tsib format
 
 ```python
@@ -341,7 +381,7 @@ Explicit `U_Wall_1`/`U_Roof_1`/`U_Floor_1`/`U_Window_1`/`n_Infiltration`/`g_gl_n
 | Heating setpoint | 18 °C |
 | Cooling setpoint | 26 °C |
 | Infiltration rate | 0.8 ACH |
-| Heating system | Electric heater |
+| Heating system | Electric heater (or `wood_stove` when selected explicitly) |
 
 ---
 

@@ -29,6 +29,7 @@ HEAT_TECHS = [
     "Pellet boiler",
     "Electric heater",
     "District heating",
+    "wood_stove",
 ]
 
 KWARG_TYPES = {
@@ -69,7 +70,9 @@ KWARG_TYPES = {
         "Electric heater",
         "CHP",
         "District heating",
+        "wood_stove",
     ],
+    "woodStoveParameters": dict,
     "replaceHeatSupply": bool,  # if heat supply is at the end if the life time
     "T_sup": float,  # design supply temperature of the building
     "floorHeating": bool,  # if a floor heating is available --> set the supply temperature
@@ -140,6 +143,7 @@ KWARG_DEFAULTS = {
     "force_refurbishment": False,  # if refurbishment must be selected
     "hotWaterElec": False,  # if hot water is electrically provided
     "existingHeatSupply": "Oil boiler",
+    "woodStoveParameters": {},
     "buildingYear": 1990,  # construction year
     "replaceHeatSupply": True,  # if heat supply is at the end if the life time
     "hasPhotovoltaic": False,  # if it exists already a photovoltaic panel
@@ -828,6 +832,7 @@ class BuildingConfiguration(object):
         # get existing heat supply
         cfg["existingHeatSupply"] = kwgs.pop("existingHeatSupply")
         self.IDentries["existingHeatSupply"] = cfg["existingHeatSupply"]
+        cfg["woodStoveParameters"] = copy.deepcopy(kwgs.pop("woodStoveParameters"))
 
         # TODO: replace heat supply with heat equipment age
         cfg["replaceHeatSupply"] = kwgs.pop("replaceHeatSupply")
@@ -980,5 +985,4 @@ def get_shape(bdg, iwu_bdg, a_ref):
     for door in ["Door_1"]:
         bdg["A_" + door] = iwu_bdg["A_" + door] * (ratio ** 0.5)
     return bdg
-
 
