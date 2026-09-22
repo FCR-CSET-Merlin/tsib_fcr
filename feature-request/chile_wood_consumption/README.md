@@ -272,3 +272,7 @@ eventos, banda horaria, setpoints y ajuste HDD12 está en
 [`RESULTS_COMPILATION_WOOD_STOVE.md`](RESULTS_COMPILATION_WOOD_STOVE.md).
 La corrida ampliada y sus resultados están en
 `outputs/chile_wood_stove_construction_doe_south_expanded/`.
+
+El plan para cerrar la retroalimentación térmica entre los eventos de leña y
+los nodos `T_air`, `T_s` y `T_m` del 5R1C está en
+[`PLAN_BIDIRECTIONAL_5R1C_WOOD_STOVE.md`](PLAN_BIDIRECTIONAL_5R1C_WOOD_STOVE.md).

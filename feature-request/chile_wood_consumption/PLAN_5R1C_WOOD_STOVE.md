@@ -338,6 +338,8 @@ Esta primera versión sigue siendo un acoplamiento unidireccional: recibe el
 `Heating Load` y no reinyecta todavía el calor de la estufa en `T_air`, `T_s` y
 `T_m`. Por ello, el exceso útil se reporta como diagnóstico y no modifica la
 temperatura interior. La siguiente subfase debe cerrar ese balance térmico.
+El diseño detallado para esa subfase quedó en
+[`PLAN_BIDIRECTIONAL_5R1C_WOOD_STOVE.md`](PLAN_BIDIRECTIONAL_5R1C_WOOD_STOVE.md).
 
 ### Fase 7 — Entrega
 
