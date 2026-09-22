@@ -478,3 +478,37 @@ no ejecutando todavía una nueva calibración REDPE. El primer entregable de
 código debe ser un kernel 5R1C con fuente térmica explícita y pruebas de
 regresión; el controlador de eventos se conecta después de demostrar que el
 kernel conserva el comportamiento anterior.
+
+## 14. Mensaje para el próximo agente
+
+Vienes a continuar un trabajo ya avanzado. No partas desde cero ni reemplaces
+el predictor existente. Lee primero este plan, el estado del arte y
+`PHASE6_EVENTS_STORAGE.md`; después inspecciona `sim_demand_direct()` en
+`tsib/thermal/model5R1C.py` y `simulate_wood_stove_predictive_events()` en
+`tsib/renewables/wood_stove.py`.
+
+Tu primer objetivo no es obtener una mediana cercana a REDPE. Es demostrar que
+una fuente térmica explícita puede entrar al balance 5R1C sin romper la ruta
+actual. Implementa primero el kernel reutilizable y sus pruebas de regresión.
+Sólo cuando el caso sin estufa reproduzca el resultado existente debes conectar
+el controlador de eventos.
+
+Mantén estas reglas durante toda la implementación:
+
+- no uses `REDPE_mid` como entrada, objetivo anual ni mecanismo para decidir
+  cuántos leños quemar;
+- no mezcles calor de leña con `elecLoad` ni ocultes la fuente dentro de
+  `Heating Load`;
+- separa siempre combustible, calor útil de leña, calefacción auxiliar,
+  demanda no satisfecha y sobrecalentamiento;
+- conserva las APIs y resultados históricos del modelo unidireccional;
+- documenta cualquier supuesto nuevo, especialmente eficiencia, reparto
+  aire/superficie y fracción de energía del arranque;
+- no ejecutes todavía las 500 viviendas ni una calibración regional antes de
+  pasar las pruebas sintéticas y la corrida de un inmueble por región.
+
+El siguiente entregable concreto debe ser un commit pequeño que contenga el
+kernel 5R1C con fuente térmica explícita, tests de conservación de energía y
+una prueba que verifique que, con la fuente apagada, el resultado coincide con
+`sim_demand_direct()`. Después continúa con el controlador incremental
+`preview → decide → advance` y registra los cambios en este plan.
