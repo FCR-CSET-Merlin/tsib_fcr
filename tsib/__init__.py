@@ -21,6 +21,15 @@ from .renewables.wood_stove import (
 from .renewables.solar import simPhotovoltaic, simSolarThermal
 from .renewables.heatpump import simHeatpump
 from .thermal.model5R1C import Building5R1C
+from .thermal.wood_stove_5r1c import (
+    BidirectionalWoodStoveResult,
+    FiveR1CState,
+    StoveCommand,
+    StoveObservation,
+    WoodStoveController,
+    WoodStoveControllerState,
+    simulate_wood_stove_5r1c_bidirectional,
+)
 from .profiles import (
     as_hourly_series,
     build_default_occupancy_profiles,

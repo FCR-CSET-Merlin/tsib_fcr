@@ -1224,45 +1224,19 @@ class Building5R1C(object):
         return designHeatLoad / 1000
 
 
-    def sim_demand_direct(
+    def _prepare_direct_5r1c(
         self,
         heating_setpoint=None,
         cooling_setpoint=None,
         heating_available=None,
         cooling_available=None,
     ):
-        """Compute building heat/cooling demand via direct 5R1C time-stepping.
+        """Build the fixed 5R1C data used by the direct time-stepper.
 
-        Solves the ISO 13790 5R1C energy balance analytically at each hour
-        without building or solving an LP.  No Pyomo solver required.
-
-        Results are written to self.detailedResults with the same keys as
-        sim5R1C: 'Heating Load', 'Cooling Load', 'Electricity Load',
-        'T_air', 'T_s', 'T_m', plus 'Heating Setpoint' and 'Cooling Setpoint'
-        (all 1-D numpy arrays, kW/°C per hour).
-
-        Parameters
-        ----------
-        heating_setpoint, cooling_setpoint: scalar, array-like or pd.Series, optional
-            Hourly comfort setpoints [°C]. If None (default), the constant
-            values from cfg["comfortT_lb"]/cfg["comfortT_ub"] are used —
-            identical to calling this method with no arguments. Any other
-            input is normalized to an hourly array aligned to self.times via
-            tsib.profiles.as_hourly_series (accepts scalar/list/ndarray/Series).
-        heating_available, cooling_available: array-like of bool, optional
-            Hourly availability mask. Where False, the corresponding
-            HVAC system is treated as switched off: the indoor air is left
-            to free-float instead of being clamped to the setpoint, and the
-            corresponding load is 0. This replaces the historical pattern of
-            representing "off" with extreme finite setpoints (e.g. -20/60°C),
-            which is not needed here since availability is explicit and no
-            real infinities are ever used. Defaults to available at every hour.
-
-        Raises
-        ------
-        ValueError
-            If setpoints contain non-finite values, have the wrong length, or
-            if cooling_setpoint <= heating_setpoint in any hour.
+        The returned mapping is intentionally small and numerical.  It is
+        shared by the historical direct demand path and by opt-in coupled
+        system models so that conductances, gains and profiles cannot drift
+        into a second, incompatible 5R1C definition.
         """
         self.WACC = None
         self.lifetime = 40
@@ -1270,8 +1244,10 @@ class Building5R1C(object):
         self.coolCost = 0.02
         self.elecCost = 0.25
 
-        # ── step 1: build a temporary Pyomo model just to extract parameters ──
         N = len(self.times)
+        if N < 2:
+            raise ValueError("5R1C direct simulation requires at least two timesteps.")
+
         M_tmp = pyomo.ConcreteModel()
         M_tmp.timeIndex = [(1, t) for t in range(N)]
         M_tmp.fullTimeIndex = M_tmp.timeIndex
@@ -1294,32 +1270,31 @@ class Building5R1C(object):
         M_tmp = self._initOpti(M_tmp)
         M_tmp.bRefurbishment = False
         M_tmp = self._addOpti(M_tmp)
-        # profiles are plain numpy arrays indexed 0..N-1 at this point
 
-        # ── step 2: extract fixed conductances (single option per component) ──
         ix_walls = list(M_tmp.bInsul["Walls"])[0]
-        ix_roof  = list(M_tmp.bInsul["Roof"])[0]
+        ix_roof = list(M_tmp.bInsul["Roof"])[0]
         ix_floor = list(M_tmp.bInsul["Floor"])[0]
-        ix_win   = list(M_tmp.bInsul["Windows"])[0]
-        ix_vent  = list(M_tmp.bInsul["Ventilation"])[0]
+        ix_win = list(M_tmp.bInsul["Windows"])[0]
+        ix_vent = list(M_tmp.bInsul["Ventilation"])[0]
 
-        H_em   = (M_tmp.bH["Walls"][ix_walls]
-                  + M_tmp.bH["Roof"][ix_roof]
-                  + M_tmp.bH["Floor"][ix_floor])  # opaque envelope [kW/K]
-        H_win  = M_tmp.bH["Windows"][ix_win]       # window conductance [kW/K]
-        H_vent = M_tmp.bH["Ventilation"][ix_vent]  # ventilation [kW/K]
-        H_door = M_tmp.bH_door                     # door [kW/K]
-        H_ms   = M_tmp.bH_ms                       # mass–surface [kW/K]
-        H_is   = M_tmp.bH_is                       # surface–air [kW/K]
-        C_m    = M_tmp.bC_m                        # thermal mass [kWh/K]
-        dt     = M_tmp.stepSize                    # timestep [h]
-        U_win_kw = M_tmp.bU["Windows"][ix_win]     # window U-value [kW/(m²·K)]
-        h_ms   = M_tmp.bConst["h_ms"]              # surface h.t.c. [kW/(m²·K)]
-        A_tot  = M_tmp.bA_tot                      # total internal surface [m²]
-        A_m    = M_tmp.bA_m                        # effective mass area [m²]
-        A_f    = M_tmp.bA_f                        # floor area [m²]
+        H_em = (
+            M_tmp.bH["Walls"][ix_walls]
+            + M_tmp.bH["Roof"][ix_roof]
+            + M_tmp.bH["Floor"][ix_floor]
+        )
+        H_win = M_tmp.bH["Windows"][ix_win]
+        H_vent = M_tmp.bH["Ventilation"][ix_vent]
+        H_door = M_tmp.bH_door
+        H_ms = M_tmp.bH_ms
+        H_is = M_tmp.bH_is
+        C_m = M_tmp.bC_m
+        dt = M_tmp.stepSize
+        U_win_kw = M_tmp.bU["Windows"][ix_win]
+        h_ms = M_tmp.bConst["h_ms"]
+        A_tot = M_tmp.bA_tot
+        A_m = M_tmp.bA_m
+        A_f = M_tmp.bA_f
 
-        # ── step 2b: resolve hourly setpoints and availability masks ──
         if heating_setpoint is None and self.cfg.get("setpointProfile") == "chile_monthly":
             heating_setpoint = self.cfg["heatingSetpointProfile"]
         if cooling_setpoint is None and self.cfg.get("setpointProfile") == "chile_monthly":
@@ -1361,24 +1336,103 @@ class Building5R1C(object):
                 f'"cooling_available" has length {cool_avail.shape[0]}, expected {N}.'
             )
 
-        # ── step 3: precompute per-timestep gain vectors ──
-        T_e    = M_tmp.profiles["T_e"]              # outside air temp [°C]
-        Q_ig   = M_tmp.profiles["bQ_ig"]            # internal gains [kW]
-        elec   = M_tmp.profiles["bElecLoad"]        # electricity load [kW]
-
-        # Q_sol_* = solar absorbed − sky thermal radiation loss (can be < 0 at night)
+        T_e = np.asarray(M_tmp.profiles["T_e"], dtype=float)
+        Q_ig = np.asarray(M_tmp.profiles["bQ_ig"], dtype=float)
+        elec = np.asarray(M_tmp.profiles["bElecLoad"], dtype=float)
         sol_keys = [("Walls", ix_walls), ("Roof", ix_roof), ("Windows", ix_win)]
         Q_sol_all = sum(M_tmp.profiles["bQ_sol_" + c + d] for c, d in sol_keys)
-
-        # gainMassNode (Schuetz 2017, eq. 15) — with exVars = 1
         Q_m = 0.5 * (A_m / A_tot) * Q_ig + (A_f / A_tot) * Q_sol_all
+        Q_st = (
+            (1.0 - U_win_kw / h_ms / A_tot) * 0.5 * Q_ig
+            - (H_win / h_ms / A_tot) * Q_sol_all
+            + Q_sol_all
+            - Q_m
+        )
 
-        # gainSurNode (Schuetz 2017, eq. 16) — with exVars = 1, P_X = 1
-        # note: original code uses bU (per-m²) for Q_ig term, bH for Q_sol term
-        Q_st = ((1.0 - U_win_kw / h_ms / A_tot) * 0.5 * Q_ig
-                - (H_win / h_ms / A_tot) * Q_sol_all
-                + Q_sol_all
-                - Q_m)
+        return {
+            "N": N,
+            "dt": dt,
+            "H_em": H_em,
+            "H_win": H_win,
+            "H_vent": H_vent,
+            "H_door": H_door,
+            "H_ms": H_ms,
+            "H_is": H_is,
+            "C_m": C_m,
+            "T_e": T_e,
+            "Q_m": np.asarray(Q_m, dtype=float),
+            "Q_st": np.asarray(Q_st, dtype=float),
+            "elec": elec,
+            "T_lb_arr": np.asarray(T_lb_arr, dtype=float),
+            "T_ub_arr": np.asarray(T_ub_arr, dtype=float),
+            "heat_avail": heat_avail,
+            "cool_avail": cool_avail,
+        }
+
+
+    def sim_demand_direct(
+        self,
+        heating_setpoint=None,
+        cooling_setpoint=None,
+        heating_available=None,
+        cooling_available=None,
+    ):
+        """Compute building heat/cooling demand via direct 5R1C time-stepping.
+
+        Solves the ISO 13790 5R1C energy balance analytically at each hour
+        without building or solving an LP.  No Pyomo solver required.
+
+        Results are written to self.detailedResults with the same keys as
+        sim5R1C: 'Heating Load', 'Cooling Load', 'Electricity Load',
+        'T_air', 'T_s', 'T_m', plus 'Heating Setpoint' and 'Cooling Setpoint'
+        (all 1-D numpy arrays, kW/°C per hour).
+
+        Parameters
+        ----------
+        heating_setpoint, cooling_setpoint: scalar, array-like or pd.Series, optional
+            Hourly comfort setpoints [°C]. If None (default), the constant
+            values from cfg["comfortT_lb"]/cfg["comfortT_ub"] are used —
+            identical to calling this method with no arguments. Any other
+            input is normalized to an hourly array aligned to self.times via
+            tsib.profiles.as_hourly_series (accepts scalar/list/ndarray/Series).
+        heating_available, cooling_available: array-like of bool, optional
+            Hourly availability mask. Where False, the corresponding
+            HVAC system is treated as switched off: the indoor air is left
+            to free-float instead of being clamped to the setpoint, and the
+            corresponding load is 0. This replaces the historical pattern of
+            representing "off" with extreme finite setpoints (e.g. -20/60°C),
+            which is not needed here since availability is explicit and no
+            real infinities are ever used. Defaults to available at every hour.
+
+        Raises
+        ------
+        ValueError
+            If setpoints contain non-finite values, have the wrong length, or
+            if cooling_setpoint <= heating_setpoint in any hour.
+        """
+        data = self._prepare_direct_5r1c(
+            heating_setpoint=heating_setpoint,
+            cooling_setpoint=cooling_setpoint,
+            heating_available=heating_available,
+            cooling_available=cooling_available,
+        )
+        N = data["N"]
+        H_em = data["H_em"]
+        H_win = data["H_win"]
+        H_vent = data["H_vent"]
+        H_door = data["H_door"]
+        H_ms = data["H_ms"]
+        H_is = data["H_is"]
+        C_m = data["C_m"]
+        dt = data["dt"]
+        T_e = data["T_e"]
+        Q_m = data["Q_m"]
+        Q_st = data["Q_st"]
+        elec = data["elec"]
+        T_lb_arr = data["T_lb_arr"]
+        T_ub_arr = data["T_ub_arr"]
+        heat_avail = data["heat_avail"]
+        cool_avail = data["cool_avail"]
 
         # ── step 4: forward-Euler time-stepping with periodic BC ──
         # Analytical solution per step (derived from surface + air algebraic eqs):
@@ -1622,5 +1676,4 @@ class Building5R1C(object):
         self._readResults(M)
 
         return
-
 

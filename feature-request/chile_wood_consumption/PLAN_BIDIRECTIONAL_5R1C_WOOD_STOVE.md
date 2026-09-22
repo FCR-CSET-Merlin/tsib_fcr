@@ -512,3 +512,32 @@ kernel 5R1C con fuente térmica explícita, tests de conservación de energía y
 una prueba que verifique que, con la fuente apagada, el resultado coincide con
 `sim_demand_direct()`. Después continúa con el controlador incremental
 `preview → decide → advance` y registra los cambios en este plan.
+
+## 15. Avance de implementación — 2026-09-22
+
+Se implementó el primer entregable del Paso 1 y una primera conexión opt-in:
+
+- `Building5R1C._prepare_direct_5r1c()` concentra la extracción de
+  conductancias, perfiles, ganancias y setpoints que usa la ruta directa.
+- `tsib/thermal/wood_stove_5r1c.py` contiene el kernel de paso 5R1C con
+  fuentes explícitas en aire, superficie y masa, además de
+  `preview → controller.step → advance`.
+- `WoodStoveController` conserva el evento activo, fases, intervalo mínimo y
+  número de leños sin recibir un objetivo anual.
+- `simulate_wood_stove_5r1c_bidirectional()` expone los modos `wood_only` y
+  `wood_plus_auxiliary`, y separa combustible, calor útil, auxiliar, demanda
+  no satisfecha, sobrecalentamiento y electricidad.
+- La API nueva se exporta desde `tsib`; las APIs históricas no se reemplazan.
+- Se añadieron pruebas sintéticas para disparador exterior, conservación de
+  energía de eventos, regresión contra `sim_demand_direct()`, efecto térmico
+  de la estufa y conservación de `Electricity Load`.
+
+La prueba específica del acoplamiento pasa completa (`22 passed`). La suite
+completa también ejecutó los tests nuevos y existentes relevantes; los fallos
+restantes provienen de compatibilidad preexistente con `pandas` reciente
+(`freq="H"`) y de dos APIs históricas ausentes (`simHouseholdsParallel` y
+`simSingleHousehold`), no de este acoplamiento.
+
+Quedan para los siguientes pasos el remuestreo explícito a 30 minutos, el
+spin-up anual con convergencia de eventos, la corrida regional y la validación
+externa. Esta implementación no usa `REDPE_mid`.
