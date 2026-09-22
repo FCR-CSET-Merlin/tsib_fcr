@@ -77,3 +77,8 @@ PYTHONPATH=. python examples/chile/analyze_wood_stove_setpoint_sensitivity.py \
 
 Los resultados por inmueble y el resumen numérico están en
 `outputs/chile_wood_stove_setpoint_sensitivity_south/`.
+
+La sensibilidad de setpoint debe interpretarse junto con el DOE de calidad
+constructiva, porque una vivienda con mayor U e infiltración puede cerrar la
+brecha anual a costa de incrementar la demanda no satisfecha. Ese DOE está en
+`outputs/chile_wood_stove_construction_doe_south_expanded/`.

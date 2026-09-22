@@ -254,3 +254,9 @@ Para inspeccionar un día horario se puede usar
 selecciona el día invernal más frío y exporta temperatura ambiente, temperatura
 interior, potencia de combustión, calor útil y masa de leña por hora en
 `outputs/chile_wood_stove_winter_day_magallanes/`.
+
+La hipótesis de calidad constructiva se explora con el DOE
+`examples/chile/run_wood_stove_construction_doe.py`, que varía U de muros,
+U de ventanas e infiltración y valida las configuraciones contra la cohorte.
+La corrida ampliada y sus resultados están en
+`outputs/chile_wood_stove_construction_doe_south_expanded/`.

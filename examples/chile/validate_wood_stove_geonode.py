@@ -234,8 +234,13 @@ def _archetype_parameters(code):
     }
 
 
-def _build_model(building, weather, winter_heating_setpoint=None):
-    """Build and solve 5R1C, optionally overriding June-August heating setpoints."""
+def _build_model(
+    building,
+    weather,
+    winter_heating_setpoint=None,
+    envelope_factors=None,
+):
+    """Build and solve 5R1C with optional winter setpoint and envelope factors."""
     archetype = _archetype_parameters(building["episcope_archetype"])
     n_units = int(building["n_inmuebles"] or 1)
     n_units = max(n_units, 1)
@@ -273,6 +278,29 @@ def _build_model(building, weather, winter_heating_setpoint=None):
             "hotWaterLoad": zeros,
         }
     )
+
+    if envelope_factors is not None:
+        wall_multiplier = float(envelope_factors.get("wall_u_multiplier", 1.0))
+        window_multiplier = float(
+            envelope_factors.get("window_u_multiplier", 1.0)
+        )
+        infiltration_multiplier = float(
+            envelope_factors.get("infiltration_multiplier", 1.0)
+        )
+        if (
+            not np.isfinite(wall_multiplier)
+            or wall_multiplier <= 0
+            or not np.isfinite(window_multiplier)
+            or window_multiplier <= 0
+            or not np.isfinite(infiltration_multiplier)
+            or infiltration_multiplier <= 0
+        ):
+            raise ValueError("Envelope multipliers must be positive and finite.")
+        for key in cfg:
+            if key.startswith("U_Wall_"):
+                cfg[key] *= wall_multiplier
+        cfg["U_Window"] *= window_multiplier
+        cfg["n_air_infiltration"] *= infiltration_multiplier
 
     model = tsib.Building5R1C(cfg)
     if winter_heating_setpoint is None:

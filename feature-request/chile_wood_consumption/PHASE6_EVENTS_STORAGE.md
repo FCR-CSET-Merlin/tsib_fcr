@@ -185,6 +185,19 @@ combustión, calor útil, estado de almacenamiento y masa horaria de leña. El
 caso de Natales (`edificio_id=2577343`) queda en
 `outputs/chile_wood_stove_winter_day_magallanes/`.
 
+Para explorar la hipótesis de pobreza energética se agregó
+`examples/chile/run_wood_stove_construction_doe.py`. El DOE varía
+multiplicadores de U de muros, U de ventanas e infiltración, manteniendo el
+horario 08:00–23:00, y valida la configuración seleccionada en la cohorte.
+El screening ampliado usa niveles `1×`, `1,5×`, `2×`, `2,5×` y `3×` en un
+factorial `5³` por región y setpoint. En la validación de cohorte, las mejores
+brechas alcanzan aproximadamente `-10,3%` en Magallanes, `-10,8%` en Los
+Ríos, `-12,8%` en Los Lagos y `-6,6%` en Araucanía. En Magallanes esa mejora
+requiere los tres multiplicadores en `3×` y produce más de 30 MWh/año de
+demanda no satisfecha; por tanto, no debe interpretarse como una configuración
+física validada. Los resultados están en
+`outputs/chile_wood_stove_construction_doe_south_expanded/`.
+
 La corrida de referencia del script base usó 16 registros, uno por región,
 144 candidatos por registro y 2.304 evaluaciones válidas. El mejor conjunto
 reproduce el combustible anual del MVP en esos registros y no deja derrame ni
