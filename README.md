@@ -46,6 +46,7 @@ pip install highspy
 - This README is the current public API and usage guide.
 - [`CHANGELOG.md`](CHANGELOG.md) records every release and what changed relative to the previous version (and to upstream tsib).
 - [`AGENT.md`](AGENT.md) documents repository-maintenance constraints and the supported MERLIN_RCP interface.
+- [`examples/chile/README_WOOD_STOVE_SIMULATION.md`](examples/chile/README_WOOD_STOVE_SIMULATION.md) documents individual and 500-building Chilean wood-stove simulations.
 - [`feature-request/electric_demand/README.md`](feature-request/electric_demand/README.md) documents the regional residential-electricity source and calculation.
 - [`legacy_tsib_fcr_CLAUDE.md`](legacy_tsib_fcr_CLAUDE.md) is the completed original Chile-adaptation proposal, kept only for historical context.
 
