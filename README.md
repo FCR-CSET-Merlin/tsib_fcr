@@ -138,8 +138,10 @@ wood_result = building.wood_stove_result
 In this branch, the legacy `Heating Load` column remains the free-float ideal
 demand for compatibility. Actual stove fuel, useful heat, auxiliary heat,
 unmet demand, overheating and event state are reported separately in `heat`
-and in `building.wood_stove_result`. The configuration does not use an annual
-REDPE target.
+and in `building.wood_stove_result`. Wood-stove building cases apply a default
+`+3 °C` offset to the resolved heating setpoint; override it with
+`woodStoveParameters={"heating_setpoint_offset_c": 0.0}` when needed. The
+configuration does not use an annual REDPE target.
 
 ### 2. Convert BD Ancestral TMY to tsib format
 

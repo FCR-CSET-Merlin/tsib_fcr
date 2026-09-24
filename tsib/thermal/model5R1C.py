@@ -1284,6 +1284,21 @@ class Building5R1C(object):
         )
         H_win = M_tmp.bH["Windows"][ix_win]
         H_vent = M_tmp.bH["Ventilation"][ix_vent]
+        # Keep the two ventilation components available to coupled models.
+        # ``H_vent`` is historically the sum of usable-air ventilation after
+        # heat recovery and uncontrolled infiltration.  Exposing the split
+        # lets weather/HDD adjustments act on infiltration without changing
+        # the prescribed ventilation schedule itself.
+        C_air = (
+            self.cfg["A_ref"]
+            * self.cfg["h_room"]
+            * self.CONST["rho_air"]
+            * self.CONST["C_air"]
+        )
+        H_vent_infiltration = (
+            C_air * float(self.cfg["n_air_infiltration"]) / 3600.0
+        )
+        H_vent_fixed = H_vent - H_vent_infiltration
         H_door = M_tmp.bH_door
         H_ms = M_tmp.bH_ms
         H_is = M_tmp.bH_is
@@ -1355,6 +1370,8 @@ class Building5R1C(object):
             "H_em": H_em,
             "H_win": H_win,
             "H_vent": H_vent,
+            "H_vent_fixed": H_vent_fixed,
+            "H_vent_infiltration": H_vent_infiltration,
             "H_door": H_door,
             "H_ms": H_ms,
             "H_is": H_is,
@@ -1676,4 +1693,3 @@ class Building5R1C(object):
         self._readResults(M)
 
         return
-

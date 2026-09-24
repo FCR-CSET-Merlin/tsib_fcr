@@ -105,6 +105,25 @@ def test_bidirectional_without_stove_and_with_auxiliary_matches_direct_path():
     assert result.fuel_energy_consumed_kwh == pytest.approx(0.0)
 
 
+def test_wood_only_lifts_inactive_cooling_bound_for_large_setpoint_offset():
+    model = _model(n=48, temperature_mean=2.0, q_ig_kw=0.0)
+    result = tsib.simulate_wood_stove_5r1c_bidirectional(
+        model,
+        heating_setpoint=22.0,
+        cooling_setpoint=24.0,
+        heating_mode="wood_only",
+        heating_setpoint_offset_c=3.0,
+        availability=False,
+        timestep_minutes=60,
+    )
+
+    assert result.scenario_parameters["cooling_setpoint_auto_lifted"] is True
+    assert (
+        result.detailed_results["Cooling Setpoint"]
+        > result.detailed_results["Heating Setpoint"]
+    ).all()
+
+
 def test_wood_heat_changes_zone_state_and_preserves_electricity_load():
     base_model = _model(n=96, temperature_mean=2.0, q_ig_kw=0.0)
     base = tsib.simulate_wood_stove_5r1c_bidirectional(
@@ -174,3 +193,10 @@ def test_building_heat_supply_wood_stove_activates_bidirectional_module():
     assert "event_state" in heat_profiles
     assert "Q_wood_useful_kw" in building.thermalmodel.detailedResults
     assert building.wood_stove_result.event_count > 0
+    np.testing.assert_allclose(
+        building.wood_stove_result.detailed_results["Heating Setpoint"].to_numpy(),
+        float(building.cfg["comfortT_lb"]) + 3.0,
+    )
+    assert building.wood_stove_result.scenario_parameters[
+        "heating_setpoint_offset_c"
+    ] == pytest.approx(3.0)

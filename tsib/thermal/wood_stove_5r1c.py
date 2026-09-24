@@ -337,6 +337,13 @@ def _nonnegative_float(value, name):
     return value
 
 
+def _finite_float(value, name):
+    value = float(value)
+    if not np.isfinite(value):
+        raise ValueError(f'"{name}" must be finite.')
+    return value
+
+
 def _bounded_float(value, name, lower, upper):
     value = float(value)
     if not np.isfinite(value) or not lower < value <= upper:
@@ -384,6 +391,32 @@ def _resolve_mask(value, n, name, default=True):
     return array
 
 
+def _resolve_profile(value, n, name, default):
+    """Resolve a scalar or timestep profile to a finite float array."""
+
+    if value is None:
+        return np.full(n, float(default), dtype=float)
+    if np.isscalar(value):
+        profile = np.full(n, float(value), dtype=float)
+    else:
+        profile = np.asarray(
+            value.to_numpy() if isinstance(value, (pd.Series, pd.DataFrame)) else value,
+            dtype=float,
+        ).reshape(-1)
+        if profile.size != n:
+            raise ValueError(f'"{name}" has length {profile.size}, expected {n}.')
+    if not np.isfinite(profile).all() or (profile < 0.0).any():
+        raise ValueError(f'"{name}" must contain finite, non-negative values.')
+    return profile
+
+
+def _profile_value(value, index):
+    """Read a scalar or timestep profile at one model index."""
+
+    array = np.asarray(value)
+    return float(array) if array.ndim == 0 else float(array[index])
+
+
 def _preview_5r1c_step(data, state, index):
     """Preview free-float temperature and ideal heat demand without stove heat."""
 
@@ -399,7 +432,7 @@ def _solve_preview(data, state, index, source_air_kw, source_surface_kw, source_
     h_ms = data["H_ms"]
     h_is = data["H_is"]
     h_win = data["H_win"]
-    h_vent = data["H_vent"]
+    h_vent = _profile_value(data["H_vent"], index)
     t_surface_free = (
         h_ms * tm + q_surface + q_air - (h_win + h_vent) * dte
     ) / h_ms
@@ -445,7 +478,7 @@ def _advance_5r1c_step(
     h_ms = data["H_ms"]
     h_is = data["H_is"]
     h_win = data["H_win"]
-    h_vent = data["H_vent"]
+    h_vent = _profile_value(data["H_vent"], index)
     t_lb = float(data["T_lb_arr"][index])
     t_ub = float(data["T_ub_arr"][index])
 
@@ -501,6 +534,7 @@ def simulate_wood_stove_5r1c_bidirectional(
     *,
     heating_setpoint=None,
     cooling_setpoint=None,
+    heating_setpoint_offset_c=0.0,
     heating_mode="wood_only",
     efficiency=0.50,
     log_energy_kwh=7.5,
@@ -525,6 +559,7 @@ def simulate_wood_stove_5r1c_bidirectional(
     availability=None,
     auxiliary_available=None,
     cooling_available=None,
+    h_vent_profile=None,
     spinup_passes=5,
 ):
     """Run the opt-in causal wood-stove/5R1C coupling.
@@ -554,6 +589,9 @@ def simulate_wood_stove_5r1c_bidirectional(
     if not isinstance(spinup_passes, (int, np.integer)) or spinup_passes < 1:
         raise ValueError('"spinup_passes" must be a positive integer.')
 
+    heating_setpoint_offset_c = _finite_float(
+        heating_setpoint_offset_c, "heating_setpoint_offset_c"
+    )
     air_fraction = _nonnegative_float(air_fraction, "air_fraction")
     surface_fraction = _nonnegative_float(surface_fraction, "surface_fraction")
     mass_fraction = _nonnegative_float(mass_fraction, "mass_fraction")
@@ -588,6 +626,30 @@ def simulate_wood_stove_5r1c_bidirectional(
         heating_available=auxiliary_enabled,
         cooling_available=cooling_enabled,
     )
+    base_h_vent = float(data["H_vent"])
+    if h_vent_profile is not None:
+        data["H_vent"] = _resolve_profile(
+            h_vent_profile, n, "h_vent_profile", base_h_vent
+        )
+    cooling_setpoint_auto_lifted = False
+    if heating_setpoint_offset_c:
+        data["T_lb_arr"] = data["T_lb_arr"] + heating_setpoint_offset_c
+        if np.any(data["T_ub_arr"] <= data["T_lb_arr"]):
+            # A wood-only run has no active cooling channel.  Preserve the
+            # requested heating setpoint by lifting the inactive upper bound
+            # only where the monthly profiles overlap.  Mixed heating/cooling
+            # runs retain the strict validation because the overlap would be
+            # physically ambiguous there.
+            if heating_mode == "wood_only" and not np.any(cooling_enabled):
+                data["T_ub_arr"] = np.maximum(
+                    data["T_ub_arr"], data["T_lb_arr"] + 2.0
+                )
+                cooling_setpoint_auto_lifted = True
+            else:
+                raise ValueError(
+                    "heating_setpoint_offset_c makes cooling_setpoint <= "
+                    "heating_setpoint in at least one timestep."
+                )
     dt = float(data["dt"])
     if timestep_minutes is not None:
         requested_dt = _positive_float(timestep_minutes, "timestep_minutes") / 60.0
@@ -657,6 +719,7 @@ def simulate_wood_stove_5r1c_bidirectional(
         dt=dt,
         scenario_parameters={
             "efficiency": float(efficiency),
+            "heating_setpoint_offset_c": float(heating_setpoint_offset_c),
             "log_energy_kwh": float(log_energy_kwh),
             "logs_per_stere": logs_per_stere,
             "pci_mj_per_kg": pci_mj_per_kg,
@@ -672,6 +735,8 @@ def simulate_wood_stove_5r1c_bidirectional(
             "min_event_interval_hours": float(min_event_interval_hours),
             "operation_start_hour": int(operation_start_hour),
             "operation_end_hour": int(operation_end_hour),
+            "dynamic_h_vent": bool(h_vent_profile is not None),
+            "cooling_setpoint_auto_lifted": bool(cooling_setpoint_auto_lifted),
         },
     )
 
@@ -768,6 +833,9 @@ def _run_coupled_pass(
         "event_logs": event_logs,
         "event_state": event_state,
         "event_fuel_input_kwh": event_fuel,
+        "H_vent": np.full(n, float(data["H_vent"]), dtype=float)
+        if np.asarray(data["H_vent"]).ndim == 0
+        else np.asarray(data["H_vent"], dtype=float),
         "wood_useful_energy_kwh": float(np.sum(useful_heat) * data["dt"]),
         "fuel_energy_consumed_kwh": float(np.sum(fuel_input) * data["dt"]),
         "auxiliary_heating_energy_kwh": float(np.sum(auxiliary) * data["dt"]),
@@ -822,6 +890,7 @@ def _build_result(
             "event_logs": output["event_logs"],
             "event_state": output["event_state"],
             "event_fuel_input_kwh": output["event_fuel_input_kwh"],
+            "H_vent": output["H_vent"],
         },
         index=index,
     )

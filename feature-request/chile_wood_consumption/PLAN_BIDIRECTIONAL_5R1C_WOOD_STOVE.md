@@ -547,3 +547,316 @@ La selección desde el flujo de `Building` quedó integrada mediante
 pueden pasar en `woodStoveParameters`; `Building.getHeatLoad()` activa entonces
 la API bidireccional y conserva `Heating Load` como demanda ideal libre,
 reportando el calor de leña y la calefacción auxiliar en columnas separadas.
+
+## 16. Plan siguiente: calibración regional usando HDD
+
+### 16.1. Objetivo
+
+Incorporar la severidad climática regional observada mediante grados día de
+calefacción (HDD) para que el consumo simulado disminuya en el norte y centro
+de Chile y aumente en la zona sur, manteniendo la dinámica causal del modelo
+5R1C.
+
+El HDD no debe sumarse directamente como una carga térmica adicional: la
+temperatura exterior horaria ya entra en el balance 5R1C. Agregar HDD a
+`Heating Load` duplicaría parcialmente el efecto climático. HDD debe funcionar
+como una señal regional de calibración de parámetros no observados.
+
+### 16.2. Evidencia de las corridas existentes
+
+Se compararon 500 edificios con los mismos parámetros, modificando solamente
+el offset del setpoint:
+
+- offset `+3 °C`: media ponderada de `11,61 m³ estéreo/año`;
+- offset `0 °C`: media ponderada de `7,69 m³ estéreo/año`;
+- reducción global: aproximadamente `33,8 %`.
+
+El offset `0 °C` mejora la zona centro, pero todavía sobreestima RM,
+O'Higgins y Maule. El offset `+3 °C` representa mejor el sur, pero subestima
+Los Lagos y Aysén respecto a REDPE. Por lo tanto, no existe un único offset
+global que resuelva todas las regiones.
+
+La referencia HDD independiente queda almacenada en:
+
+```text
+outputs/chile_hdd_reference/hdd_regional_ponderado_lena_2024.csv
+```
+
+El archivo contiene HDD12 y HDD14 para las 16 regiones, calculados con
+temperatura media diaria ERA5 y ponderados por `n_inmuebles` de los registros
+que declaran `tipo_comb_calef = lena`. HDD14 tiene una correlación ligeramente
+mayor con el punto medio REDPE en las regiones con referencia (`r ≈ 0,93`
+frente a `r ≈ 0,91` para HDD12), por lo que se utilizará como señal principal
+y HDD12 quedará como análisis de sensibilidad.
+
+### 16.3. Primera capa: offset de setpoint dependiente de HDD
+
+Definir un offset por región, en vez de pasar el mismo valor a las 500
+viviendas:
+
+```text
+offset_region = clip(
+    offset_min
+    + slope * (HDD14_region - HDD_low) / (HDD_high - HDD_low),
+    offset_min,
+    offset_max,
+)
+```
+
+La hipótesis inicial es `offset_min = 0 °C` para el norte/centro y
+`offset_max = +3 °C` para la zona sur. `HDD_low`, `HDD_high` y la pendiente no
+deben quedar fijados arbitrariamente: se deben calibrar con las regiones que
+tienen REDPE y luego extrapolar a las regiones sin REDPE. Como prueba inicial
+se puede explorar una transición aproximadamente entre HDD14 `1000` y
+`1900 °C·día/año`, manteniendo esos valores como parámetros del escenario y no
+como constantes ocultas.
+
+La capa de análisis debe asociar el HDD al `codigo_region` de cada edificio y
+pasar el offset regional a
+`simulate_wood_stove_5r1c_bidirectional()`. Cada resultado debe conservar:
+
+- `hdd12_regional` y `hdd14_regional`;
+- `heating_setpoint_offset_c` aplicado;
+- referencia del setpoint sin offset;
+- consumo, eventos, temperatura interior y demanda no satisfecha.
+
+### 16.4. Segunda capa: corrección regional de pérdidas térmicas
+
+El offset no alcanza para corregir regiones donde el escenario con offset cero
+ya está por encima de REDPE o donde incluso `+3 °C` queda por debajo. Si la
+primera capa no es suficiente, se añadirá una corrección de envolvente basada
+en HDD:
+
+```text
+loss_multiplier_region =
+    (HDD14_region / HDD14_reference) ** beta
+```
+
+El multiplicador se aplicará explícitamente a parámetros de pérdidas que ya
+acepta el constructor del edificio:
+
+- `wall_u_multiplier`;
+- `window_u_multiplier`;
+- `infiltration_multiplier`.
+
+El valor de `beta` y los límites superior/inferior se deben ajustar con REDPE y
+validar con regiones dejadas fuera del ajuste. El factor debe estar centrado
+en una referencia neutral y ser moderado; no se debe reutilizar sin cambios el
+ajuste histórico que aplicaba severidad solamente a cinco regiones australes.
+
+Esta capa representa diferencias regionales no observadas de envolvente,
+infiltración, viento y operación. No representa una segunda fuente de frío ni
+modifica la temperatura exterior.
+
+### 16.5. Procedimiento de calibración
+
+1. Cargar el archivo HDD aislado y asociarlo a cada región.
+2. Ejecutar los escenarios base `offset=0` y `offset=+3`, ya disponibles.
+3. Ajustar una función monotónica `offset(HDD14)` usando el punto medio REDPE
+   en las nueve regiones con referencia.
+4. Medir los residuos regionales restantes.
+5. Si los residuos mantienen una tendencia con HDD, ajustar el multiplicador
+   de envolvente con regularización y límites físicos.
+6. Extrapolar a las siete regiones sin REDPE sólo mediante la función HDD, sin
+   inventar un objetivo de consumo regional.
+7. Ejecutar 500 viviendas con diez procesos y comparar:
+
+   - offset cero;
+   - offset global `+3 °C`;
+   - offset dependiente de HDD;
+   - offset dependiente de HDD más corrección de envolvente.
+
+8. Evaluar simultáneamente consumo REDPE, dispersión, temperatura interior,
+   demanda no satisfecha, sobrecalentamiento y cantidad de eventos.
+
+### 16.6. Precauciones
+
+- No modificar `T_ext` ni sumar HDD a la potencia de calefacción.
+- No usar `REDPE_mid` para decidir cuántos leños carga un evento.
+- No aplicar una corrección fuerte a Arica y Parinacota sin revisar su HDD:
+  tiene pocos registros y un valor regional atípicamente alto frente a
+  Tarapacá.
+- Mantener HDD12 como sensibilidad, porque el resultado depende de la base
+  térmica elegida.
+- Registrar todos los factores regionales en la salida para que la calibración
+  sea auditable y reproducible.
+
+### 16.7. Próximo entregable
+
+Implementar en el script regional una opción de calibración HDD que lea el
+archivo aislado, asigne offsets regionales y escriba una tabla con los
+parámetros aplicados. Después ejecutar el piloto de 500 edificios y revisar si
+el ajuste de offset basta o si es necesario activar la corrección de
+envolvente.
+
+## 17. Primera iteración viento-humedad — 2026-09-24
+
+La vista `meteorology_commune.era5_hourly_comunal` contiene `wspd`, `wdir`,
+`rh` y `tdew`, pero no contiene precipitación directa. Se implementó una
+primera señal opcional de exposición meteorológica:
+
+```text
+dewpoint_depression = max(Tdry - Tdew, 0)
+wet_index = clip((RH - 80) / 20, 0, 1)
+wet_index *= clip((2 - dewpoint_depression) / 2, 0, 1)
+rain_wind_index = wet_index * clip(wspd / 4, 0, 1)
+
+H_vent_multiplier = clip(
+    1 + 0.10 * (wspd / 2 m/s)^2 + 0.05 * rain_wind_index,
+    1,
+    1.50,
+)
+```
+
+El multiplicador se aplica como perfil temporal de la infiltración dentro de
+`H_vent` en el kernel bidireccional; la ventilación prescrita se mantiene fija.
+No se modifica `T_ext`, el setpoint ni se agrega una carga fría separada. La señal de lluvia debe interpretarse como exposición húmeda
+proxy, no como precipitación observada.
+
+La corrida se realizó sobre las 500 viviendas, con offset de setpoint `0 °C`,
+disparador exterior `10 °C`, paso de 30 minutos, intervalo mínimo de 1 hora,
+eficiencia `0,50` y diez procesos:
+
+```text
+outputs/chile_wood_stove_bidirectional_regional_500_setpoint0_trigger10_weather_exposure/
+```
+
+Comparada con el mismo escenario sin exposición meteorológica:
+
+- consumo medio ponderado: `6,45 → 6,77 m³ estéreo/año` (`+4,9 %`);
+- multiplicador medio de infiltración dentro de `H_vent`: `1,19`;
+- Los Lagos: aproximadamente `+8,5 %`;
+- Magallanes: aproximadamente `+10,4 %`;
+- RM: aproximadamente `+1,1 %`.
+
+La imagen comparativa es
+`weather_exposure_vs_base.png` dentro de esa carpeta. La API conserva el
+perfil constante anterior cuando `h_vent_profile=None`, y las pruebas del
+kernel pasan (`4 passed`).
+
+## 18. Piloto HDD14 en la envolvente — 2026-09-24
+
+Se implementó la corrección regional de pérdidas térmicas usando el archivo
+aislado:
+
+```text
+outputs/chile_hdd_reference/hdd_regional_ponderado_lena_2024.csv
+```
+
+La referencia se calculó como la mediana regional de HDD14:
+`1161,97 °C·día/año`. Para cada región se aplicó:
+
+```text
+factor = clip((HDD14_region / HDD14_reference) ** beta, 0.85, 1.25)
+```
+
+con `beta_wall=0,25`, `beta_window=0,15` y `beta_infiltration=0,35`.
+Los factores se aplican a `U_Wall_*`, `U_Window` y `n_air_infiltration` al
+construir cada edificio. La señal horaria de viento/humedad se aplica después
+sólo a la infiltración, evitando contar dos veces la ventilación prescrita.
+
+La corrida de 500 viviendas usó offset `0 °C`, disparador exterior `10 °C`,
+paso de 30 minutos, intervalo de 1 hora, eficiencia `0,50` y diez procesos:
+
+```text
+outputs/chile_wood_stove_bidirectional_regional_500_setpoint0_trigger10_hdd14_envelope_weather/
+```
+
+Resultados medios ponderados por `n_inmuebles`:
+
+| Caso | Consumo [m³ estéreo/año] |
+|---|---:|
+| Base, sin viento/humedad | 6,45 |
+| Viento/humedad en infiltración | 6,77 |
+| HDD14 en envolvente + viento/humedad | 6,93 |
+
+Respecto al caso con viento/humedad, HDD14 reduce el consumo en Tarapacá
+(`−9,4 %`), Atacama (`−7,7 %`), Coquimbo (`−7,0 %`), Valparaíso (`−3,8 %`)
+y RM (`−1,9 %`), mientras que lo aumenta en Maule (`+1,9 %`), Araucanía
+(`+2,5 %`), Los Ríos (`+3,8 %`), Los Lagos (`+7,5 %`), Aysén (`+12,8 %`) y
+Magallanes (`+10,8 %`). Arica y Parinacota aumenta (`+9,6 %`) porque su HDD14
+ponderado es atípicamente alto en el archivo de referencia; debe mantenerse
+como región de sensibilidad y no interpretarse todavía como calibración física.
+
+La tabla completa, los factores regionales y las imágenes se escriben en la
+carpeta de salida. La figura comparativa principal es
+`hdd_envelope_vs_weather.png`.
+
+## 19. Sensibilidad con límites HDD ampliados — 2026-09-24
+
+Se amplió el rango de factores regionales de `[0,85, 1,25]` a `[0,70, 1,75]`,
+manteniendo los mismos exponentes (`beta_wall=0,25`, `beta_window=0,15` y
+`beta_infiltration=0,35`). Se repitieron las 500 viviendas con diez procesos:
+
+```text
+outputs/chile_wood_stove_bidirectional_regional_500_setpoint0_trigger10_hdd14_envelope_weather_wide/
+```
+
+El consumo medio ponderado aumentó de `6,93` a `6,98 m³ estéreo/año` (`+0,8 %`).
+El cambio regional respecto al rango anterior fue:
+
+- Tarapacá: `−12,6 %`;
+- Aysén: `+4,6 %`;
+- Magallanes: `+7,3 %`.
+
+En varias regiones intermedias el consumo no cambia porque el controlador
+redondea la carga de cada evento a un número entero de leños. El factor de
+infiltración efectivamente observado varió entre `0,70` y `1,53`; el límite
+superior `1,75` no fue alcanzado por los HDD14 disponibles.
+
+## 20. Offsets de setpoint regionales hardcodeados — 2026-09-24
+
+Se añadió una tabla explícita de offsets de setpoint, manteniendo `0 °C` como
+offset global para las demás regiones:
+
+| Región | Offset |
+|---|---:|
+| RM | `−1 °C` |
+| Biobío | `+2 °C` |
+| Araucanía | `+3 °C` |
+| Los Ríos | `+3 °C` |
+| Los Lagos | `+4 °C` |
+| Aysén | `+4 °C` |
+
+Se repitieron las 500 viviendas sobre el escenario HDD14 ampliado
+(`[0,70, 1,75]`), con viento/humedad, disparador exterior de `10 °C`, timestep
+de 30 minutos, cargas cada 1 hora y diez procesos:
+
+```text
+outputs/chile_wood_stove_bidirectional_regional_500_hdd14_envelope_weather_regional_offsets/
+```
+
+El consumo medio ponderado aumentó de `6,98` a `9,38 m³ estéreo/año`. Frente
+al escenario sin offsets regionales, los cambios fueron:
+
+- RM: `−15,7 %`;
+- Biobío: `+58,2 %`;
+- Araucanía: `+66,4 %`;
+- Los Ríos: `+52,0 %`;
+- Los Lagos: `+82,6 %`;
+- Aysén: `+41,6 %`.
+
+Los cambios grandes son consistentes con la lógica actual del controlador: un
+setpoint mayor aumenta el déficit interior y la cantidad de eventos de carga.
+La tabla de offsets aplicados queda registrada en `run_summary.json` y en cada
+fila de `simulation_results.csv`.
+
+## 21. Ajuste de Aysén a +5 °C — 2026-09-24
+
+Se cambió únicamente el offset de Aysén de `+4 °C` a `+5 °C` y se repitieron
+las 500 viviendas:
+
+```text
+outputs/chile_wood_stove_bidirectional_regional_500_hdd14_envelope_weather_regional_offsets_aysen5_v2/
+```
+
+La corrida finalizó con `500/500` simulaciones válidas. Comparada con Aysén
+`+4 °C`, el consumo medio ponderado cambió de `9,38` a `9,42 m³
+estéreo/año` (`+0,5 %` global), mientras que Aysén pasó de `19,57` a `20,83
+m³ estéreo/año` (`+6,4 %`). Las demás regiones permanecen sin cambios.
+
+Para las viviendas donde el offset grande hacía que el setpoint de calefacción
+superara el límite de enfriamiento mensual, se elevó automáticamente ese límite
+inactivo sólo en el modo `wood_only`; no se activa enfriamiento ni se modifica
+el setpoint de calefacción solicitado. Esta regla queda registrada en
+`cooling_setpoint_auto_lifted` y tiene una prueba específica del kernel.

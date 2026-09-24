@@ -161,7 +161,7 @@ def _load_era5_weather(engine, commune_id, year):
 
     query = text(
         """
-        SELECT timestamp_utc, ghi, dni, dhi, tdry, t_mains
+        SELECT timestamp_utc, ghi, dni, dhi, tdry, tdew, rh, wspd, wdir, t_mains
         FROM meteorology_commune.era5_hourly_comunal
         WHERE commune_id = :commune_id
           AND timestamp_utc >= :start_utc
@@ -204,6 +204,18 @@ def _load_era5_weather(engine, commune_id, year):
         raise ValueError("ERA5 view contains null or non-finite required values.")
     if (numeric[["ghi", "dni", "dhi"]] < 0).any().any():
         raise ValueError("ERA5 view contains negative irradiance values.")
+
+    # Preserve complete wind/humidity signals when the communal ERA5 view
+    # provides them.  They are not needed by the legacy thermal path, but are
+    # used by optional weather-exposure scenarios.
+    optional = ["tdew", "rh", "wspd", "wdir"]
+    optional_numeric = weather[optional].apply(pd.to_numeric, errors="coerce")
+    if not np.isfinite(optional_numeric.to_numpy(dtype=float)).all():
+        raise ValueError("ERA5 view contains null or non-finite exposure values.")
+    if (optional_numeric["wspd"] < 0).any():
+        raise ValueError("ERA5 view contains negative wind-speed values.")
+    if ((optional_numeric["rh"] < 0) | (optional_numeric["rh"] > 100)).any():
+        raise ValueError("ERA5 view contains relative-humidity values outside 0-100%.")
 
     weather.index = index_utc.tz_convert("America/Santiago")
     weather.index.name = "timestamp_local"

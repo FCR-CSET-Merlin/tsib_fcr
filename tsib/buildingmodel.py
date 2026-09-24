@@ -429,9 +429,15 @@ class Building(object):
         # previous behavior.
         try:
             if self.cfg["existingHeatSupply"] == "wood_stove":
+                wood_stove_parameters = dict(
+                    self.cfg.get("woodStoveParameters", {})
+                )
+                # Wood-heating cases use a warmer comfort target by default;
+                # callers can override this explicitly in woodStoveParameters.
+                wood_stove_parameters.setdefault("heating_setpoint_offset_c", 3.0)
                 self.wood_stove_result = tsib.simulate_wood_stove_5r1c_bidirectional(
                     self.thermalmodel,
-                    **self.cfg.get("woodStoveParameters", {}),
+                    **wood_stove_parameters,
                 )
                 detailed = self.wood_stove_result.detailed_results.copy(deep=True)
                 # Keep the historical columns available.  For this branch,
